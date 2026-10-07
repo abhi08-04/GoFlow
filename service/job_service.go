@@ -7,18 +7,23 @@ import (
 
 
 type JobService struct {
+	jobs chan <- model.Job
 
 }
 
-func NewJobService() *JobService {
-	return &JobService{}
+func NewJobService(jobs chan <- model.Job) *JobService {
+	return &JobService{
+		jobs : jobs,
+	}
 }
 
 func (s *JobService) CreateJob (req model.CreateJobRequest) model.Job {
-	return model.Job {
+	job := model.Job {
 		ID : uuid.New().String(),
 		Type : req.Type,
 		Payload : req.Payload,
 		Status : "pending",
 	}
+	s.jobs <- job
+	return job
 }
