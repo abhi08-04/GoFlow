@@ -32,3 +32,18 @@ func (h *JobHandler) CreateJob(c *gin.Context) {
 
 	c.JSON(http.StatusCreated, job)
 }
+
+func (h *JobHandler) GetJob(c *gin.Context) {
+	id := c.Param("id")
+
+	job, exists := h.jobService.GetJob(id)
+
+	if !exists {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": "job not found",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, job)
+}

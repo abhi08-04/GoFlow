@@ -11,6 +11,7 @@ import (
 	"goflow/service"
 	"goflow/worker"
 	"goflow/model"
+	"goflow/store"
 	"github.com/gin-gonic/gin"
 )
 
@@ -18,15 +19,17 @@ func main() {
 	r := gin.Default()
 
 	jobs := make(chan model.Job, 10)
+	jobStore := store.NewJobStore()
 	var wg sync.WaitGroup
-	wg.Add(3)
 
-	for i := 1; i < 3; i++ {
-		w := worker.NewWorker(i)
+	const numWorkers = 3
+	for i := 1; i <= numWorkers; i++ {
+		wg.Add(1)
+		w := worker.NewWorker(i, jobStore)
 		go w.Start(jobs, &wg)
 	}
 
-	jobService := service.NewJobService(jobs)
+	jobService := service.NewJobService(jobs, jobStore)
 	jobHandler := handler.NewJobHandler(jobService)
 
 	r.GET("/ping", func(c *gin.Context) {
@@ -36,7 +39,7 @@ func main() {
 	})
 
 	r.POST("/jobs", jobHandler.CreateJob)
-
+	r.GET("/jobs/:id", jobHandler.GetJob)
 	server := &http.Server {
 		Addr : ":8080",
 		Handler : r,

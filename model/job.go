@@ -15,3 +15,10 @@ type CreateJobRequest struct {
 	Type    string `json:"type"`
 	Payload string `json:"payload"`
 }
+
+const (
+	JobPending   = "pending"
+	JobRunning   = "running"
+	JobCompleted = "completed"
+	JobFailed    = "failed"
+)
