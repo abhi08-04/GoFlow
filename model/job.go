@@ -6,6 +6,7 @@ type Job struct {
 	Type    string `json:"type"`
 	Payload string `json:"payload"`
 	Status  string `json:"status"`
+	Attempts int    `json:"attempts"`
 }
 
 

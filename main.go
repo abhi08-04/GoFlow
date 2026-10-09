@@ -3,6 +3,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"fmt"
 	"os/signal"
 	"sync"
 	"syscall"
@@ -12,20 +13,25 @@ import (
 	"goflow/worker"
 	"goflow/model"
 	"goflow/store"
+	"goflow/retry"
 	"github.com/gin-gonic/gin"
 )
 
 func main() {
 	r := gin.Default()
 
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	jobs := make(chan model.Job, 10)
 	jobStore := store.NewJobStore()
+	retryScheduler := retry.NewScheduler(ctx, jobs)
 	var wg sync.WaitGroup
 
 	const numWorkers = 3
 	for i := 1; i <= numWorkers; i++ {
 		wg.Add(1)
-		w := worker.NewWorker(i, jobStore)
+		w := worker.NewWorker(i, jobStore, retryScheduler, 3, 1 * time.Second)
 		go w.Start(jobs, &wg)
 	}
 
@@ -56,13 +62,16 @@ func main() {
 
 	<- quit
 
+	cancel()
+
 	shutdownCtx, shutdownCancel := context.WithTimeout(
 		context.Background(),
 		10 * time.Second,
 	)
 	defer shutdownCancel()
-
-	server.Shutdown(shutdownCtx)
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		fmt.Println("Server shutdown error:", err)
+	}
 
 	close(jobs)
 

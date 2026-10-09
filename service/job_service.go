@@ -26,6 +26,7 @@ func (s *JobService) CreateJob (req model.CreateJobRequest) model.Job {
 		Type : req.Type,
 		Payload : req.Payload,
 		Status : model.JobPending,
+		Attempts : 0,
 	}
 	s.store.Create(job)
 	s.jobs <- job
