@@ -1,19 +1,21 @@
 package main
+
 import (
 	"context"
+	"fmt"
+	"goflow/handler"
+	"goflow/model"
+	"goflow/retry"
+	"goflow/service"
+	"goflow/store"
+	"goflow/worker"
 	"net/http"
 	"os"
-	"fmt"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
-	"goflow/handler"
-	"goflow/service"
-	"goflow/worker"
-	"goflow/model"
-	"goflow/store"
-	"goflow/retry"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -24,6 +26,7 @@ func main() {
 	defer cancel()
 
 	jobs := make(chan model.Job, 10)
+	dlq := store.NewDLQ()
 	jobStore := store.NewJobStore()
 	retryScheduler := retry.NewScheduler(ctx, jobs)
 	var wg sync.WaitGroup
@@ -31,12 +34,12 @@ func main() {
 	const numWorkers = 3
 	for i := 1; i <= numWorkers; i++ {
 		wg.Add(1)
-		w := worker.NewWorker(i, jobStore, retryScheduler, 3, 1 * time.Second)
+		w := worker.NewWorker(i, jobStore, retryScheduler, 3, 1*time.Second, dlq)
 		go w.Start(jobs, &wg)
 	}
 
 	jobService := service.NewJobService(jobs, jobStore)
-	jobHandler := handler.NewJobHandler(jobService)
+	jobHandler := handler.NewJobHandler(jobService, dlq)
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -45,10 +48,14 @@ func main() {
 	})
 
 	r.POST("/jobs", jobHandler.CreateJob)
+	r.POST("/dlq/:id/retry", jobHandler.RetryDLQJob)
+
 	r.GET("/jobs/:id", jobHandler.GetJob)
-	server := &http.Server {
-		Addr : ":8080",
-		Handler : r,
+	r.GET("/dlq", jobHandler.GetDLQ)
+
+	server := &http.Server{
+		Addr:    ":8080",
+		Handler: r,
 	}
 	go server.ListenAndServe()
 
@@ -60,7 +67,7 @@ func main() {
 		syscall.SIGTERM,
 	)
 
-	<- quit
+	<-quit
 
 	cancel()
 

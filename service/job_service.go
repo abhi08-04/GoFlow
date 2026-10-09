@@ -36,3 +36,18 @@ func (s *JobService) CreateJob (req model.CreateJobRequest) model.Job {
 func (s *JobService) GetJob(id string) (model.Job, bool) {
 	return s.store.Get(id)
 }
+
+func (s *JobService) RetryJob (job model.Job) bool {
+	job.Attempts = 0
+	job.Status = model.JobPending
+
+
+	select {
+		case s.jobs <- job: 
+			s.store.Update(job)
+			return true
+		default :
+			return false
+	}
+
+}

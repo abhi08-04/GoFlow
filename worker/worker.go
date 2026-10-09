@@ -17,15 +17,17 @@ type Worker struct {
 	scheduler *retry.Scheduler
 	maxRetries  int
 	baseBackoff time.Duration
+	dlq *store.DLQ
 }
 
-func NewWorker (id int, jobStore *store.JobStore, scheduler *retry.Scheduler, maxRetries int, baseBackoff time.Duration) *Worker {
+func NewWorker (id int, jobStore *store.JobStore, scheduler *retry.Scheduler, maxRetries int, baseBackoff time.Duration, dlq *store.DLQ) *Worker {
 	return &Worker {
 		ID : id,
 		store : jobStore,
 		scheduler : scheduler,
 		maxRetries : maxRetries,
 		baseBackoff : baseBackoff,
+		dlq	: dlq,
 	}
 }
 
@@ -109,6 +111,7 @@ func (w *Worker) processJob(job model.Job) {
 
 	job.Status = model.JobFailed
 	w.store.Update(job)
+	w.dlq.Add(job)
 
 	fmt.Println(
 		"Job permanently failed :",
