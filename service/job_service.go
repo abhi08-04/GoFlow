@@ -33,9 +33,6 @@ func (s *JobService) CreateJob (req model.CreateJobRequest, idemKey string) (mod
 	if err != nil {
 		return model.Job{}, created, err
 	}
-	if created {
-		s.jobs <- job
-	}
 
 	return job, created, nil
 }
