@@ -182,3 +182,68 @@ func TestRetryExhaustionAddsJobToDLQ(t *testing.T) {
 		t.Fatal("expected no retry to be enqueued after retry exhaustion")
 	}
 }
+
+func TestFailedJobRetryIsEnqueued(t *testing.T) {
+	jobs := make(chan model.Job, 1)
+	jobStore := store.NewJobStore()
+	dlq := store.NewDLQ()
+	scheduler := retry.NewScheduler(context.Background(), jobs)
+	defer scheduler.Stop()
+
+	job := model.Job{
+		ID:     "retry-job",
+		Status: model.JobPending,
+	}
+	jobStore.Update(job)
+
+	w := NewWorker(
+		1,
+		jobStore,
+		scheduler,
+		3,
+		10*time.Millisecond,
+		time.Second,
+		dlq,
+	)
+
+	w.execute = func(model.Job) error {
+		return errors.New("simulated failure")
+	}
+
+	w.processJob(job)
+
+	select {
+	case retriedJob := <-jobs:
+		if retriedJob.ID != job.ID {
+			t.Fatalf("expected job ID %s, got %s",
+				job.ID, retriedJob.ID)
+		}
+
+		if retriedJob.Status != model.JobPending {
+			t.Fatalf("expected status %v, got %v",
+				model.JobPending, retriedJob.Status)
+		}
+
+		if retriedJob.Attempts != 1 {
+			t.Fatalf("expected 1 attempt before retry, got %d",
+				retriedJob.Attempts)
+		}
+
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for retry to be enqueued")
+	}
+
+	savedJob, exists := jobStore.Get(job.ID)
+	if !exists {
+		t.Fatal("expected job to exist in store")
+	}
+
+	if savedJob.Status != model.JobPending {
+		t.Fatalf("expected stored status %v, got %v",
+			model.JobPending, savedJob.Status)
+	}
+
+	if len(dlq.GetAll()) != 0 {
+		t.Fatal("expected job not to be in DLQ while retries remain")
+	}
+}
