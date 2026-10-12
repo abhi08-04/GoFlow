@@ -80,6 +80,7 @@ func main() {
 		fmt.Println("Server shutdown error:", err)
 	}
 
+	retryScheduler.Stop()
 	close(jobs)
 
 	wg.Wait()

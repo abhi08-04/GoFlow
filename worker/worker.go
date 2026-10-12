@@ -51,7 +51,7 @@ func (w *Worker) executeJob(job model.Job) error {
 	defer cancel()
 
 	select {
-		case <- time.After(3 * time.Second):
+		case <- time.After(7 * time.Second):
 			fmt.Println("Job completed :", job.ID)
 			return nil
 
