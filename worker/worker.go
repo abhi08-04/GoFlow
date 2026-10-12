@@ -7,32 +7,34 @@ import (
 	"time"
 
 	"goflow/model"
-	"goflow/store"
 	"goflow/retry"
+	"goflow/store"
 )
 
 type Worker struct {
-	ID int
-	store *store.JobStore
-	scheduler *retry.Scheduler
+	ID          int
+	store       *store.JobStore
+	scheduler   *retry.Scheduler
 	maxRetries  int
 	baseBackoff time.Duration
 	jobTimeout  time.Duration
-	dlq *store.DLQ
+	dlq         *store.DLQ
+	execute     func(model.Job) error
 }
 
-func NewWorker (id int, jobStore *store.JobStore, scheduler *retry.Scheduler, maxRetries int, baseBackoff time.Duration, jobTimeout time.Duration, dlq *store.DLQ) *Worker {
-	return &Worker {
-		ID : id,
-		store : jobStore,
-		scheduler : scheduler,
-		maxRetries : maxRetries,
-		baseBackoff : baseBackoff,
-		jobTimeout : jobTimeout,
-		dlq	: dlq,
+func NewWorker(id int, jobStore *store.JobStore, scheduler *retry.Scheduler, maxRetries int, baseBackoff time.Duration, jobTimeout time.Duration, dlq *store.DLQ) *Worker {
+	w := &Worker{
+		ID:          id,
+		store:       jobStore,
+		scheduler:   scheduler,
+		maxRetries:  maxRetries,
+		baseBackoff: baseBackoff,
+		jobTimeout:  jobTimeout,
+		dlq:         dlq,
 	}
+	w.execute = w.executeJob
+	return w
 }
-
 
 func (w *Worker) Start(jobs <-chan model.Job, wg *sync.WaitGroup) {
 	defer wg.Done()
@@ -43,7 +45,7 @@ func (w *Worker) Start(jobs <-chan model.Job, wg *sync.WaitGroup) {
 }
 
 func (w *Worker) executeJob(job model.Job) error {
-	ctx, cancel := context.WithTimeout (
+	ctx, cancel := context.WithTimeout(
 		context.Background(),
 		w.jobTimeout,
 	)
@@ -51,16 +53,15 @@ func (w *Worker) executeJob(job model.Job) error {
 	defer cancel()
 
 	select {
-		case <- time.After(7 * time.Second):
-			fmt.Println("Job completed :", job.ID)
-			return nil
+	case <-time.After(7 * time.Second):
+		fmt.Println("Job completed :", job.ID)
+		return nil
 
-		case <- ctx.Done():
-			return ctx.Err()
+	case <-ctx.Done():
+		return ctx.Err()
 	}
-	
-}
 
+}
 
 func (w *Worker) processJob(job model.Job) {
 	job.Attempts++
@@ -74,7 +75,7 @@ func (w *Worker) processJob(job model.Job) {
 		"Attempt :", job.Attempts,
 	)
 
-	err := w.executeJob(job)
+	err := w.execute(job)
 
 	if err == nil {
 		job.Status = model.JobCompleted
