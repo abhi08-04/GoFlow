@@ -20,7 +20,7 @@ func NewJobService(jobs chan <- model.Job, jobStore *store.JobStore) *JobService
 	}
 }
 
-func (s *JobService) CreateJob (req model.CreateJobRequest) model.Job {
+func (s *JobService) CreateJob (req model.CreateJobRequest, idemKey string) (model.Job, bool, error) {
 	job := model.Job {
 		ID : uuid.New().String(),
 		Type : req.Type,
@@ -28,9 +28,16 @@ func (s *JobService) CreateJob (req model.CreateJobRequest) model.Job {
 		Status : model.JobPending,
 		Attempts : 0,
 	}
-	s.store.Create(job)
-	s.jobs <- job
-	return job
+	job, created, err := s.store.Create(job, idemKey)
+
+	if err != nil {
+		return model.Job{}, created, err
+	}
+	if created {
+		s.jobs <- job
+	}
+
+	return job, created, nil
 }
 
 func (s *JobService) GetJob(id string) (model.Job, bool) {

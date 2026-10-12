@@ -30,10 +30,28 @@ func (h *JobHandler) CreateJob(c *gin.Context) {
 		})
 		return
 	}
+	
+	idemKey := c.GetHeader("Idempotency-Key")
+	if idemKey == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Idempotency-Key header is required",
+		})
+		return
+	}
 
-	job := h.jobService.CreateJob(req)
+	job, created, err := h.jobService.CreateJob(req, idemKey)
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+	if !created {
+		c.JSON(http.StatusOK, job)
+	} else {
+		c.JSON(http.StatusCreated, job)
+	}
 
-	c.JSON(http.StatusCreated, job)
 }
 
 func (h *JobHandler) GetJob(c *gin.Context) {

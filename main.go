@@ -15,11 +15,17 @@ import (
 	"sync"
 	"syscall"
 	"time"
-
+	"log"
+	"strconv"
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
+	}
 	r := gin.Default()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -31,8 +37,11 @@ func main() {
 	retryScheduler := retry.NewScheduler(ctx, jobs)
 	var wg sync.WaitGroup
 
-	const numWorkers = 3
-	for i := 1; i <= numWorkers; i++ {
+	num_workers, err := strconv.Atoi(os.Getenv("NUM_WORKERS"))
+	if err != nil {
+		log.Fatal("Invalid NUM_WORKERS")
+	}
+	for i := 1; i <= num_workers; i++ {
 		wg.Add(1)
 		w := worker.NewWorker(i, jobStore, retryScheduler, 3, 1*time.Second, dlq)
 		go w.Start(jobs, &wg)
@@ -53,8 +62,9 @@ func main() {
 	r.GET("/jobs/:id", jobHandler.GetJob)
 	r.GET("/dlq", jobHandler.GetDLQ)
 
+	port := os.Getenv("PORT")
 	server := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":" + port,
 		Handler: r,
 	}
 	go server.ListenAndServe()
