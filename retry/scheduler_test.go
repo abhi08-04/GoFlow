@@ -1,27 +1,40 @@
 package retry
 
-
 import (
-	"sync"
+	"context"
 	"fmt"
+	"goflow/model"
+	"sync"
 	"testing"
 	"time"
-	"context"
-	"goflow/model"
 )
 
 func TestStopCancelsPendingRetry(t *testing.T) {
 	jobs := make(chan model.Job, 1)
-
 	scheduler := NewScheduler(context.Background(), jobs)
+
+	callbackCalled := make(chan struct{})
 
 	job := model.Job{
 		ID:     "test-job",
 		Status: model.JobPending,
 	}
 
-	scheduler.Schedule(job, 5*time.Second)
+	scheduled := scheduler.Schedule(job, 5*time.Second, func() {
+		close(callbackCalled)
+	})
+
+	if !scheduled {
+		t.Fatal("expected scheduler to accept retry")
+	}
+
 	scheduler.Stop()
+
+	select {
+	case <-callbackCalled:
+	case <-time.After(time.Second):
+		t.Fatal("expected cancellation callback to be called")
+	}
 
 	select {
 	case received := <-jobs:
@@ -29,7 +42,6 @@ func TestStopCancelsPendingRetry(t *testing.T) {
 	default:
 	}
 }
-
 
 func TestScheduledRetryIsEnqueued(t *testing.T) {
 	jobs := make(chan model.Job, 1)
@@ -40,7 +52,7 @@ func TestScheduledRetryIsEnqueued(t *testing.T) {
 		Status: model.JobRunning,
 	}
 
-	scheduler.Schedule(job, 10*time.Millisecond)
+	scheduler.Schedule(job, 10*time.Millisecond, func() {})
 
 	select {
 	case received := <-jobs:
@@ -59,18 +71,19 @@ func TestScheduledRetryIsEnqueued(t *testing.T) {
 	scheduler.Stop()
 }
 
-
 func TestConcurrentScheduleAndStop(t *testing.T) {
 	jobs := make(chan model.Job, 100)
 	scheduler := NewScheduler(context.Background(), jobs)
 
 	var callers sync.WaitGroup
+	start := make(chan struct{})
 
 	for i := 0; i < 100; i++ {
 		callers.Add(1)
 
 		go func(i int) {
 			defer callers.Done()
+			<-start
 
 			scheduler.Schedule(
 				model.Job{
@@ -78,10 +91,44 @@ func TestConcurrentScheduleAndStop(t *testing.T) {
 					Status: model.JobPending,
 				},
 				time.Second,
+				func() {},
 			)
 		}(i)
 	}
 
+	close(start)
+
+	go scheduler.Stop()
+
 	callers.Wait()
 	scheduler.Stop()
+}
+
+func TestConcurrentStop(t *testing.T) {
+	jobs := make(chan model.Job, 100)
+	scheduler := NewScheduler(context.Background(), jobs)
+
+	for i := 0; i < 100; i++ {
+		scheduler.Schedule(
+			model.Job{
+				ID:     fmt.Sprintf("job-%d", i),
+				Status: model.JobPending,
+			},
+			time.Second,
+			func() {},
+		)
+	}
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < 10; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+			scheduler.Stop()
+		}()
+	}
+
+	wg.Wait()
 }

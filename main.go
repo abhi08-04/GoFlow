@@ -82,6 +82,20 @@ func main() {
 
 	retryScheduler.Stop()
 	close(jobs)
+	
+	workersDone := make(chan struct{})
 
-	wg.Wait()
+	go func() {
+		wg.Wait()
+		close(workersDone)
+	}()
+
+	select {
+	case <-workersDone:
+		fmt.Println("All workers stopped gracefully")
+
+	case <-shutdownCtx.Done():
+		fmt.Println("Shutdown timeout exceeded; workers may not have finished")
+		return
+	}
 }

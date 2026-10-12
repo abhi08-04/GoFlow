@@ -96,18 +96,29 @@ func (w *Worker) processJob(job model.Job) {
 	)
 
 	if job.Attempts <= w.maxRetries {
+		delay := w.baseBackoff * time.Duration(1<<(job.Attempts-1))
+
 		job.Status = model.JobPending
 		w.store.Update(job)
 
-		delay := w.baseBackoff * time.Duration(1<<(job.Attempts-1))
+		scheduled := w.scheduler.Schedule(job, delay, func() {
+			job.Status = model.JobFailed
+			w.store.Update(job)
+			w.dlq.Add(job)
 
-		fmt.Println(
-			"Retrying :", job.ID,
-			"after", delay,
-		)
+			fmt.Println("Retry cancelled during shutdown:", job.ID)
+		})
 
-		w.scheduler.Schedule(job, delay)
+		if scheduled {
+			fmt.Println("Retry scheduled:", job.ID, "after", delay)
+			return
+		}
 
+		job.Status = model.JobFailed
+		w.store.Update(job)
+		w.dlq.Add(job)
+
+		fmt.Println("Retry rejected; scheduler stopping:", job.ID)
 		return
 	}
 
