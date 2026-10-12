@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"errors"
 	"net/http"
 	"goflow/model"
 	"goflow/service"
@@ -41,6 +42,13 @@ func (h *JobHandler) CreateJob(c *gin.Context) {
 
 	job, created, err := h.jobService.CreateJob(req, idemKey)
 	if err != nil {
+		if errors.Is(err, store.ErrQueueFull) {
+			c.JSON(http.StatusServiceUnavailable, gin.H{
+				"error": "job queue is full, try again later",
+			})
+			return
+		}
+
 		c.JSON(http.StatusConflict, gin.H{
 			"error": err.Error(),
 		})

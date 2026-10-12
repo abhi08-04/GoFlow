@@ -3,8 +3,11 @@ package store
 import (
 	"fmt"
 	"sync"
+	"errors"
 	"goflow/model"
 )
+
+var ErrQueueFull = errors.New("job queue is full")
 
 type JobStore struct {
 	mu sync.RWMutex
@@ -19,7 +22,7 @@ func NewJobStore() *JobStore {
 	}
 }
 
-func (s *JobStore) Create(job model.Job, idemKey string) (model.Job, bool, error) {
+func (s *JobStore) Create(job model.Job, idemKey string, jobs chan <- model.Job) (model.Job, bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	jobID, exists := s.idempotencyKeys[idemKey]
@@ -35,11 +38,18 @@ func (s *JobStore) Create(job model.Job, idemKey string) (model.Job, bool, error
 		}
 
 		return existingJob, false, nil
-	} else {
-		s.jobs[job.ID] = job
-		s.idempotencyKeys[idemKey] = job.ID
-		return job, true, nil
-	}
+	} 
+	s.jobs[job.ID] = job
+	s.idempotencyKeys[idemKey] = job.ID
+
+	select {
+		case jobs <- job:
+			return job, true, nil
+		default:
+			delete(s.jobs, job.ID)
+			delete(s.idempotencyKeys, idemKey)
+			return model.Job{}, false, ErrQueueFull
+		}
 }
 
 

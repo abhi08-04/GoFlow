@@ -17,16 +17,18 @@ type Worker struct {
 	scheduler *retry.Scheduler
 	maxRetries  int
 	baseBackoff time.Duration
+	jobTimeout  time.Duration
 	dlq *store.DLQ
 }
 
-func NewWorker (id int, jobStore *store.JobStore, scheduler *retry.Scheduler, maxRetries int, baseBackoff time.Duration, dlq *store.DLQ) *Worker {
+func NewWorker (id int, jobStore *store.JobStore, scheduler *retry.Scheduler, maxRetries int, baseBackoff time.Duration, jobTimeout time.Duration, dlq *store.DLQ) *Worker {
 	return &Worker {
 		ID : id,
 		store : jobStore,
 		scheduler : scheduler,
 		maxRetries : maxRetries,
 		baseBackoff : baseBackoff,
+		jobTimeout : jobTimeout,
 		dlq	: dlq,
 	}
 }
@@ -43,7 +45,7 @@ func (w *Worker) Start(jobs <-chan model.Job, wg *sync.WaitGroup) {
 func (w *Worker) executeJob(job model.Job) error {
 	ctx, cancel := context.WithTimeout (
 		context.Background(),
-		5 * time.Second,
+		w.jobTimeout,
 	)
 
 	defer cancel()

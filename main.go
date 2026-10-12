@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"goflow/config"
 	"goflow/handler"
 	"goflow/model"
 	"goflow/retry"
@@ -14,36 +15,26 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
-	"log"
-	"strconv"
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 )
 
 func main() {
-	err := godotenv.Load()
-	if err != nil {
-		log.Fatal("Error loading .env file")
-	}
+	cfg := config.Load()
+
 	r := gin.Default()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	jobs := make(chan model.Job, 10)
+	jobs := make(chan model.Job, cfg.JobQueueSize)
 	dlq := store.NewDLQ()
 	jobStore := store.NewJobStore()
 	retryScheduler := retry.NewScheduler(ctx, jobs)
 	var wg sync.WaitGroup
 
-	num_workers, err := strconv.Atoi(os.Getenv("NUM_WORKERS"))
-	if err != nil {
-		log.Fatal("Invalid NUM_WORKERS")
-	}
-	for i := 1; i <= num_workers; i++ {
+	for i := 1; i <= cfg.NumWorkers; i++ {
 		wg.Add(1)
-		w := worker.NewWorker(i, jobStore, retryScheduler, 3, 1*time.Second, dlq)
+		w := worker.NewWorker(i, jobStore, retryScheduler, cfg.MaxRetries, cfg.BaseBackoff, cfg.JobTimeout, dlq)
 		go w.Start(jobs, &wg)
 	}
 
@@ -62,9 +53,8 @@ func main() {
 	r.GET("/jobs/:id", jobHandler.GetJob)
 	r.GET("/dlq", jobHandler.GetDLQ)
 
-	port := os.Getenv("PORT")
 	server := &http.Server{
-		Addr:    ":" + port,
+		Addr:    ":" + cfg.Port,
 		Handler: r,
 	}
 	go server.ListenAndServe()
@@ -83,7 +73,7 @@ func main() {
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(
 		context.Background(),
-		10 * time.Second,
+		cfg.ShutdownTimeout,
 	)
 	defer shutdownCancel()
 	if err := server.Shutdown(shutdownCtx); err != nil {

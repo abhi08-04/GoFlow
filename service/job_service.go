@@ -28,7 +28,7 @@ func (s *JobService) CreateJob (req model.CreateJobRequest, idemKey string) (mod
 		Status : model.JobPending,
 		Attempts : 0,
 	}
-	job, created, err := s.store.Create(job, idemKey)
+	job, created, err := s.store.Create(job, idemKey, s.jobs)
 
 	if err != nil {
 		return model.Job{}, created, err
