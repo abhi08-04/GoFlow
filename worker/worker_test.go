@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"goflow/metrics"
 	"goflow/model"
 	"goflow/retry"
 	"goflow/store"
@@ -15,7 +16,7 @@ func TestCancelledRetryMarksJobFailedAndAddsToDLQ(t *testing.T) {
 	jobs := make(chan model.Job, 1)
 	jobStore := store.NewJobStore()
 	dlq := store.NewDLQ()
-	scheduler := retry.NewScheduler(context.Background(), jobs)
+	scheduler := retry.NewScheduler(context.Background(), jobs, metrics.New())
 	defer scheduler.Stop()
 
 	job := model.Job{
@@ -33,6 +34,7 @@ func TestCancelledRetryMarksJobFailedAndAddsToDLQ(t *testing.T) {
 		time.Hour,
 		time.Second,
 		dlq,
+		metrics.New(),
 	)
 
 	w.execute = func(model.Job) error {
@@ -75,7 +77,7 @@ func TestSuccessfulJobExecution(t *testing.T) {
 	jobs := make(chan model.Job, 1)
 	jobStore := store.NewJobStore()
 	dlq := store.NewDLQ()
-	scheduler := retry.NewScheduler(context.Background(), jobs)
+	scheduler := retry.NewScheduler(context.Background(), jobs, metrics.New())
 	defer scheduler.Stop()
 
 	job := model.Job{
@@ -92,6 +94,7 @@ func TestSuccessfulJobExecution(t *testing.T) {
 		time.Second,
 		time.Second,
 		dlq,
+		metrics.New(),
 	)
 
 	// Simulate successful execution without waiting seven seconds.
@@ -128,7 +131,7 @@ func TestRetryExhaustionAddsJobToDLQ(t *testing.T) {
 	jobs := make(chan model.Job, 1)
 	jobStore := store.NewJobStore()
 	dlq := store.NewDLQ()
-	scheduler := retry.NewScheduler(context.Background(), jobs)
+	scheduler := retry.NewScheduler(context.Background(), jobs, metrics.New())
 	defer scheduler.Stop()
 
 	job := model.Job{
@@ -146,6 +149,7 @@ func TestRetryExhaustionAddsJobToDLQ(t *testing.T) {
 		time.Second,
 		time.Second,
 		dlq,
+		metrics.New(),
 	)
 
 	w.execute = func(model.Job) error {
@@ -187,7 +191,7 @@ func TestFailedJobRetryIsEnqueued(t *testing.T) {
 	jobs := make(chan model.Job, 1)
 	jobStore := store.NewJobStore()
 	dlq := store.NewDLQ()
-	scheduler := retry.NewScheduler(context.Background(), jobs)
+	scheduler := retry.NewScheduler(context.Background(), jobs, metrics.New())
 	defer scheduler.Stop()
 
 	job := model.Job{
@@ -204,6 +208,7 @@ func TestFailedJobRetryIsEnqueued(t *testing.T) {
 		10*time.Millisecond,
 		time.Second,
 		dlq,
+		metrics.New(),
 	)
 
 	w.execute = func(model.Job) error {
@@ -252,7 +257,7 @@ func TestRetryEventuallyCompletesJob(t *testing.T) {
 	jobs := make(chan model.Job, 2)
 	jobStore := store.NewJobStore()
 	dlq := store.NewDLQ()
-	scheduler := retry.NewScheduler(context.Background(), jobs)
+	scheduler := retry.NewScheduler(context.Background(), jobs, metrics.New())
 	defer scheduler.Stop()
 
 	job := model.Job{
@@ -269,6 +274,7 @@ func TestRetryEventuallyCompletesJob(t *testing.T) {
 		10*time.Millisecond,
 		time.Second,
 		dlq,
+		metrics.New(),
 	)
 
 	var executions int

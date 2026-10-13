@@ -55,3 +55,24 @@ func (d *DLQ) Remove(id string) {
 
 	delete(d.jobs, id)
 }
+
+func (d *DLQ) Size() int {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	return len(d.jobs)
+}
+
+// ClaimAll removes every job currently in the DLQ and returns them.
+// Used by bulk requeue and bulk purge handlers.
+func (d *DLQ) ClaimAll() []model.Job {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	jobs := make([]model.Job, 0, len(d.jobs))
+	for _, job := range d.jobs {
+		jobs = append(jobs, job)
+	}
+	d.jobs = make(map[string]model.Job)
+	return jobs
+}

@@ -1,0 +1,32 @@
+{{ define "jobs_rows" }}
+{{ if .Jobs }}
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Type</th>
+      <th>Status</th>
+      <th style="text-align:right;">Attempts</th>
+      <th>Payload</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ range .Jobs }}
+    <tr>
+      <td class="mono" title="{{ .ID }}">{{ shortID .ID }}</td>
+      <td>{{ .Type }}</td>
+      <td><span class="pill {{ .Status }}">{{ .Status }}</span></td>
+      <td style="text-align:right; font-variant-numeric: tabular-nums;">{{ .Attempts }}</td>
+      <td class="mono" style="max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ .Payload }}">{{ .Payload }}</td>
+    </tr>
+    {{ end }}
+  </tbody>
+</table>
+{{ else }}
+<div class="empty">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+  <h4>No jobs match these filters</h4>
+  <p>Try clearing the status or type filter — or create a new job from the top-right.</p>
+</div>
+{{ end }}
+{{ end }}

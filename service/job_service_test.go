@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"goflow/metrics"
 	"goflow/model"
 	"goflow/store"
 	"sync"
@@ -11,7 +12,7 @@ import (
 func TestCreateJob(t *testing.T) {
 	jobs := make(chan model.Job, 2)
 	jobStore := store.NewJobStore()
-	jobService := NewJobService(jobs, jobStore)
+	jobService := NewJobService(jobs, jobStore, metrics.New())
 
 	req := model.CreateJobRequest{
 		Type:    "email",
@@ -52,7 +53,7 @@ func TestCreateJob(t *testing.T) {
 func TestCreateJobIdempotency(t *testing.T) {
 	jobs := make(chan model.Job, 2)
 	jobStore := store.NewJobStore()
-	jobService := NewJobService(jobs, jobStore)
+	jobService := NewJobService(jobs, jobStore, metrics.New())
 
 	req := model.CreateJobRequest{
 		Type:    "email",
@@ -87,7 +88,7 @@ func TestCreateJobQueueFull(t *testing.T) {
 	jobs <- model.Job{ID: "existing-job"}
 
 	jobStore := store.NewJobStore()
-	jobService := NewJobService(jobs, jobStore)
+	jobService := NewJobService(jobs, jobStore, metrics.New())
 
 	req := model.CreateJobRequest{
 		Type:    "email",
@@ -131,7 +132,7 @@ func TestCreateJobQueueFull(t *testing.T) {
 func TestCreateJobIdempotencyKeyConflict(t *testing.T) {
 	jobs := make(chan model.Job, 2)
 	jobStore := store.NewJobStore()
-	jobService := NewJobService(jobs, jobStore)
+	jobService := NewJobService(jobs, jobStore, metrics.New())
 
 	firstReq := model.CreateJobRequest{
 		Type:    "email",
@@ -168,7 +169,7 @@ func TestConcurrentIdempotentRequests(t *testing.T) {
 
 	jobs := make(chan model.Job, requests)
 	jobStore := store.NewJobStore()
-	jobService := NewJobService(jobs, jobStore)
+	jobService := NewJobService(jobs, jobStore, metrics.New())
 
 	req := model.CreateJobRequest{
 		Type:    "email",
@@ -225,7 +226,7 @@ func TestConcurrentIdempotentRequests(t *testing.T) {
 func TestGetJobMissing(t *testing.T) {
 	jobs := make(chan model.Job, 1)
 	jobStore := store.NewJobStore()
-	jobService := NewJobService(jobs, jobStore)
+	jobService := NewJobService(jobs, jobStore, metrics.New())
 
 	job, exists := jobService.GetJob("non-existent-id")
 
@@ -241,7 +242,7 @@ func TestGetJobMissing(t *testing.T) {
 func TestRetryJobSuccess(t *testing.T) {
 	jobs := make(chan model.Job, 1)
 	jobStore := store.NewJobStore()
-	jobService := NewJobService(jobs, jobStore)
+	jobService := NewJobService(jobs, jobStore, metrics.New())
 
 	job := model.Job{
 		ID:       "job-123",
@@ -287,7 +288,7 @@ func TestRetryJobQueueFull(t *testing.T) {
 	jobs <- existingJob
 
 	jobStore := store.NewJobStore()
-	jobService := NewJobService(jobs, jobStore)
+	jobService := NewJobService(jobs, jobStore, metrics.New())
 
 	job := model.Job{
 		ID:       "job-123",

@@ -1,0 +1,24 @@
+{{ define "topbar" }}
+<header class="topbar">
+  <div>
+    <div class="page-title">{{ .Title }}</div>
+    <div class="page-sub">{{ .Subtitle }}</div>
+  </div>
+  <div class="topbar-actions">
+    <span class="row" style="font-size: var(--fs-xs); color: var(--c-text-muted);" title="Live refresh every 5s">
+      <span class="live-dot" aria-hidden="true"></span>
+      <span>Live</span>
+    </span>
+    {{ if eq .Nav "jobs" }}
+      <button class="btn primary" data-modal-open="modal-create-job">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14"/><path d="M5 12h14"/></svg>
+        <span>New job</span>
+      </button>
+    {{ end }}
+    <button class="theme-toggle" onclick="window.GoFlow.toggleTheme()" aria-label="Toggle theme" title="Toggle theme">
+      <svg class="moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M4.93 19.07l1.41-1.41"/><path d="M17.66 6.34l1.41-1.41"/></svg>
+    </button>
+  </div>
+</header>
+{{ end }}

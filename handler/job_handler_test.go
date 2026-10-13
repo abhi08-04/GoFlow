@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"goflow/metrics"
 	"goflow/model"
 	"goflow/service"
 	"goflow/store"
@@ -21,7 +22,7 @@ func setupJobHandler() (*gin.Engine, chan model.Job) {
 	jobStore := store.NewJobStore()
 	dlq := store.NewDLQ()
 
-	jobService := service.NewJobService(jobs, jobStore)
+	jobService := service.NewJobService(jobs, jobStore, metrics.New())
 	jobHandler := NewJobHandler(jobService, dlq)
 
 	router := gin.New()
@@ -211,7 +212,7 @@ func TestGetDLQHandler(t *testing.T) {
 		Status:  model.JobFailed,
 	})
 
-	jobService := service.NewJobService(make(chan model.Job, 1), store.NewJobStore())
+	jobService := service.NewJobService(make(chan model.Job, 1), store.NewJobStore(), metrics.New())
 	jobHandler := NewJobHandler(jobService, dlq)
 
 	router = gin.New()
@@ -253,7 +254,7 @@ func TestRetryDLQJobHandler(t *testing.T) {
 	}
 	dlq.Add(failedJob)
 
-	jobService := service.NewJobService(jobs, jobStore)
+	jobService := service.NewJobService(jobs, jobStore, metrics.New())
 	jobHandler := NewJobHandler(jobService, dlq)
 
 	router := gin.New()
@@ -291,7 +292,7 @@ func TestRetryMissingDLQJobHandler(t *testing.T) {
 	jobStore := store.NewJobStore()
 	dlq := store.NewDLQ()
 
-	jobService := service.NewJobService(jobs, jobStore)
+	jobService := service.NewJobService(jobs, jobStore, metrics.New())
 	jobHandler := NewJobHandler(jobService, dlq)
 
 	router := gin.New()
@@ -327,7 +328,7 @@ func TestRetryDLQJobQueueFullHandler(t *testing.T) {
 		Attempts: 3,
 	})
 
-	jobService := service.NewJobService(jobs, jobStore)
+	jobService := service.NewJobService(jobs, jobStore, metrics.New())
 	jobHandler := NewJobHandler(jobService, dlq)
 
 	router := gin.New()

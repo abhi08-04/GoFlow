@@ -1,0 +1,30 @@
+{{ define "activity_rows" }}
+{{ if .RecentJobs }}
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Type</th>
+      <th>Status</th>
+      <th style="text-align:right;">Attempts</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ range .RecentJobs }}
+    <tr>
+      <td class="mono">{{ shortID .ID }}</td>
+      <td>{{ .Type }}</td>
+      <td><span class="pill {{ .Status }}">{{ .Status }}</span></td>
+      <td style="text-align:right; font-variant-numeric: tabular-nums;">{{ .Attempts }}</td>
+    </tr>
+    {{ end }}
+  </tbody>
+</table>
+{{ else }}
+<div class="empty">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M4 12h16"/><path d="M4 17h10"/></svg>
+  <h4>No activity yet</h4>
+  <p>Jobs you create will appear here.</p>
+</div>
+{{ end }}
+{{ end }}

@@ -1,0 +1,82 @@
+{{ define "content" }}
+<section class="page-header">
+  <div>
+    <span class="eyebrow">Overview</span>
+    <h1>Queue health</h1>
+    <p class="muted" style="margin: var(--sp-2) 0 0;">Live view of GoFlow's job pipeline — producers, workers, and the dead-letter queue.</p>
+  </div>
+  <div class="page-meta">
+    <span class="status-dot" aria-hidden="true"></span>
+    <span>Updated every 5 seconds</span>
+  </div>
+</section>
+
+<div id="tiles" hx-get="/partials/tiles" hx-trigger="load, every 5s, refresh from:body" hx-swap="innerHTML" data-refresh-on-action>
+  {{ template "tiles" . }}
+</div>
+
+<div class="grid-2" style="margin-top: var(--sp-6);">
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h3>Throughput</h3>
+        <div class="card-sub">Jobs completed and failed per second · last hour</div>
+      </div>
+      <span class="eyebrow">Live</span>
+    </div>
+    <div class="card-body chart-wrap">
+      <canvas id="chart-throughput" aria-label="Throughput over time"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h3>Status breakdown</h3>
+      <span class="eyebrow">Current</span>
+    </div>
+    <div class="card-body chart-wrap" style="height: 300px;">
+      <canvas id="chart-donut" aria-label="Status breakdown"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="grid-2" style="margin-top: var(--sp-6);">
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h3>By type</h3>
+        <div class="card-sub">Created, completed, and failed per job type</div>
+      </div>
+    </div>
+    <div class="card-body flush">
+      <ul class="breakdown" id="by-type">
+        {{ if .ByType }}
+          {{ range .ByType }}
+          <li>
+            <span class="bk-label">{{ .Type }}</span>
+            <span class="bk-value">{{ .Completed }}<span class="muted"> / {{ .Created }}</span>  ·  {{ .Failed }} failed</span>
+            <div class="bk-bar"><span style="width: {{ .CompletedPct }}%;"></span></div>
+          </li>
+          {{ end }}
+        {{ else }}
+          <li class="empty" style="padding: var(--sp-6);">
+            <p class="muted">No jobs yet. Push one from the <a href="/jobs">Jobs page</a> to see per-type metrics appear.</p>
+          </li>
+        {{ end }}
+      </ul>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-head">
+      <h3>Recent jobs</h3>
+      <a href="/jobs" class="btn ghost sm">All jobs →</a>
+    </div>
+    <div class="card-body flush">
+      <div id="activity" hx-get="/partials/activity" hx-trigger="load, every 5s, refresh from:body" hx-swap="innerHTML">
+        {{ template "activity_rows" . }}
+      </div>
+    </div>
+  </div>
+</div>
+{{ end }}

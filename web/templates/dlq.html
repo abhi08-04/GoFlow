@@ -1,0 +1,29 @@
+{{ define "content" }}
+<section class="page-header">
+  <div>
+    <span class="eyebrow">Dead Letter</span>
+    <h1>Failed jobs</h1>
+    <p class="muted" style="margin: var(--sp-2) 0 0;">Jobs that exhausted their retry budget. Requeue individually, in bulk, or purge permanently.</p>
+  </div>
+  <div class="page-meta"><span>{{ .DLQCount }} in queue</span></div>
+</section>
+
+<div class="toolbar">
+  <div data-selection-bar="dlq" data-active="false" style="display: flex; align-items: center; gap: var(--sp-3);">
+    <span class="eyebrow" style="color: var(--c-accent-hover);"><span data-count>0</span> selected</span>
+  </div>
+  <div class="grow"></div>
+  <button class="btn" onclick="window.GoFlow.doBulkRetry()" {{ if eq .DLQCount 0 }}disabled{{ end }}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M3.5 14.5A9 9 0 1 0 6 5.4L3 8"/></svg>
+    <span>Requeue all</span>
+  </button>
+  <button class="btn danger" onclick="window.GoFlow.doPurge()" {{ if eq .DLQCount 0 }}disabled{{ end }}>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+    <span>Purge all</span>
+  </button>
+</div>
+
+<div class="table-wrap" id="dlq-table" hx-get="/partials/dlq" hx-trigger="every 5s, refresh from:body" hx-swap="innerHTML" data-refresh-on-action>
+  {{ template "dlq_rows" . }}
+</div>
+{{ end }}

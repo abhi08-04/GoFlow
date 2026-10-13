@@ -1,0 +1,39 @@
+{{ define "sidebar" }}
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-mark" aria-hidden="true">GF</div>
+    <div>
+      <div class="brand-name">GoFlow</div>
+      <span class="brand-tag">Queue · v0.1</span>
+    </div>
+  </div>
+
+  <nav class="nav" aria-label="Primary">
+    <div class="nav-section-label">Monitor</div>
+    <a class="nav-link" href="/" {{ if eq .Nav "dashboard" }}aria-current="page"{{ end }}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+      <span>Dashboard</span>
+    </a>
+
+    <div class="nav-section-label">Manage</div>
+    <a class="nav-link" href="/jobs" {{ if eq .Nav "jobs" }}aria-current="page"{{ end }}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h10"/></svg>
+      <span>Jobs</span>
+    </a>
+    <a class="nav-link" href="/dlq" {{ if eq .Nav "dlq" }}aria-current="page"{{ end }}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+      <span>Dead Letter</span>
+      {{ if gt .DLQCount 0 }}<span class="nav-badge">{{ .DLQCount }}</span>{{ end }}
+    </a>
+    <a class="nav-link" href="/config" {{ if eq .Nav "config" }}aria-current="page"{{ end }}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.42.14.78.4 1.03.73.26.34.4.75.4 1.17a2 2 0 0 1-.4 1.17c-.25.33-.61.59-1.03.73z"/></svg>
+      <span>Config</span>
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    <span><span class="status-dot" aria-hidden="true"></span><span>Live</span></span>
+    <span>:{{ .Port }}</span>
+  </div>
+</aside>
+{{ end }}

@@ -1,0 +1,23 @@
+{{ define "content" }}
+<section class="page-header">
+  <div>
+    <span class="eyebrow">Job</span>
+    <h1 class="mono" style="font-size: var(--fs-xl);">{{ .Job.ID }}</h1>
+    <p class="muted" style="margin: var(--sp-2) 0 0;"><a href="/jobs">← Back to jobs</a></p>
+  </div>
+  <span class="pill {{ .Job.Status }}" style="font-size: var(--fs-sm); padding: 4px 12px;">{{ .Job.Status }}</span>
+</section>
+
+<div class="card" style="max-width: 760px;">
+  <div class="card-body stack-4">
+    <div class="row-between">
+      <div><span class="eyebrow">Type</span><div style="margin-top: 4px;">{{ .Job.Type }}</div></div>
+      <div><span class="eyebrow">Attempts</span><div style="margin-top: 4px; font-variant-numeric: tabular-nums;">{{ .Job.Attempts }}</div></div>
+    </div>
+    <div>
+      <span class="eyebrow">Payload</span>
+      <pre class="mono" style="margin: var(--sp-2) 0 0; padding: var(--sp-4); background: var(--c-surface); border: 1px solid var(--c-border); border-radius: var(--r-md); overflow: auto;">{{ .Job.Payload }}</pre>
+    </div>
+  </div>
+</div>
+{{ end }}

@@ -3,6 +3,7 @@ package retry
 import (
 	"context"
 	"fmt"
+	"goflow/metrics"
 	"goflow/model"
 	"sync"
 	"testing"
@@ -11,7 +12,7 @@ import (
 
 func TestStopCancelsPendingRetry(t *testing.T) {
 	jobs := make(chan model.Job, 1)
-	scheduler := NewScheduler(context.Background(), jobs)
+	scheduler := NewScheduler(context.Background(), jobs, metrics.New())
 
 	callbackCalled := make(chan struct{})
 
@@ -45,7 +46,7 @@ func TestStopCancelsPendingRetry(t *testing.T) {
 
 func TestScheduledRetryIsEnqueued(t *testing.T) {
 	jobs := make(chan model.Job, 1)
-	scheduler := NewScheduler(context.Background(), jobs)
+	scheduler := NewScheduler(context.Background(), jobs, metrics.New())
 
 	job := model.Job{
 		ID:     "test-job",
@@ -73,7 +74,7 @@ func TestScheduledRetryIsEnqueued(t *testing.T) {
 
 func TestConcurrentScheduleAndStop(t *testing.T) {
 	jobs := make(chan model.Job, 100)
-	scheduler := NewScheduler(context.Background(), jobs)
+	scheduler := NewScheduler(context.Background(), jobs, metrics.New())
 
 	var callers sync.WaitGroup
 	start := make(chan struct{})
@@ -106,7 +107,7 @@ func TestConcurrentScheduleAndStop(t *testing.T) {
 
 func TestConcurrentStop(t *testing.T) {
 	jobs := make(chan model.Job, 100)
-	scheduler := NewScheduler(context.Background(), jobs)
+	scheduler := NewScheduler(context.Background(), jobs, metrics.New())
 
 	for i := 0; i < 100; i++ {
 		scheduler.Schedule(

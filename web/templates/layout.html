@@ -1,0 +1,49 @@
+{{ define "layout" }}<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{{ .Title }} · GoFlow</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2300ADD8'/%3E%3Ctext x='16' y='21' text-anchor='middle' font-family='monospace' font-size='15' font-weight='700' fill='white'%3EGF%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/layout.css">
+  <link rel="stylesheet" href="/static/css/components.css">
+  <script>
+    // Apply saved theme before paint — avoids a flash.
+    (function () {
+      try {
+        var t = localStorage.getItem('goflow-theme');
+        if (t) document.documentElement.setAttribute('data-theme', t);
+        else if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch (e) {}
+    })();
+  </script>
+</head>
+<body>
+  <div class="app">
+    {{ template "sidebar" . }}
+    {{ template "topbar" . }}
+    <main class="main">
+      <div class="main-inner">
+        {{ template "content" . }}
+      </div>
+    </main>
+  </div>
+
+  <div id="toast-tray" class="toast-tray" aria-live="polite" aria-atomic="true"></div>
+
+  {{ template "modals" . }}
+
+  <script src="https://unpkg.com/htmx.org@2.0.4/dist/htmx.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" defer></script>
+  <script src="/static/js/app.js" defer></script>
+  {{ if .PageScript }}<script src="/static/js/{{ .PageScript }}" defer></script>{{ end }}
+</body>
+</html>
+{{ end }}
+

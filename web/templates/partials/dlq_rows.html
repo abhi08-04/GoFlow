@@ -1,0 +1,39 @@
+{{ define "dlq_rows" }}
+{{ if .DLQJobs }}
+<table class="data-table">
+  <thead>
+    <tr>
+      <th class="checkbox-col"><input type="checkbox" data-select-all="dlq" aria-label="Select all"></th>
+      <th>ID</th>
+      <th>Type</th>
+      <th style="text-align:right;">Attempts</th>
+      <th>Payload</th>
+      <th style="text-align:right;">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {{ range .DLQJobs }}
+    <tr>
+      <td class="checkbox-col"><input type="checkbox" data-select-row="dlq" data-id="{{ .ID }}" aria-label="Select {{ shortID .ID }}"></td>
+      <td class="mono" title="{{ .ID }}">{{ shortID .ID }}</td>
+      <td>{{ .Type }}</td>
+      <td style="text-align:right; font-variant-numeric: tabular-nums;">{{ .Attempts }}</td>
+      <td class="mono" style="max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ .Payload }}">{{ .Payload }}</td>
+      <td>
+        <div class="actions">
+          <button class="btn sm" onclick="window.GoFlow.doRetryOne('{{ .ID }}')">Requeue</button>
+          <button class="btn sm danger" onclick="window.GoFlow.doDeleteOne('{{ .ID }}')">Delete</button>
+        </div>
+      </td>
+    </tr>
+    {{ end }}
+  </tbody>
+</table>
+{{ else }}
+<div class="empty">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>
+  <h4>Dead letter queue is empty</h4>
+  <p>No jobs have exhausted their retries. When they do, they'll land here for you to review.</p>
+</div>
+{{ end }}
+{{ end }}

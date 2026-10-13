@@ -1,0 +1,65 @@
+{{ define "content" }}
+<section class="page-header">
+  <div>
+    <span class="eyebrow">Workloads</span>
+    <h1>Jobs</h1>
+    <p class="muted" style="margin: var(--sp-2) 0 0;">Every job the queue has seen — filter by state or type, create new ones from the top-right.</p>
+  </div>
+  <div class="page-meta"><span>{{ .TotalJobs }} total</span></div>
+</section>
+
+<form class="toolbar" method="get" action="/jobs">
+  <label class="field">
+    <span>Status</span>
+    <select class="select" name="status">
+      <option value="">All states</option>
+      <option value="pending" {{ if eq .Status "pending" }}selected{{ end }}>Pending</option>
+      <option value="running" {{ if eq .Status "running" }}selected{{ end }}>Running</option>
+      <option value="completed" {{ if eq .Status "completed" }}selected{{ end }}>Completed</option>
+      <option value="failed" {{ if eq .Status "failed" }}selected{{ end }}>Failed</option>
+    </select>
+  </label>
+  <label class="field">
+    <span>Type</span>
+    <input class="input" name="type" value="{{ .Type }}" placeholder="e.g. email" />
+  </label>
+  <div class="grow"></div>
+  <button class="btn" type="submit">Apply</button>
+  {{ if or .Status .Type }}<a class="btn ghost" href="/jobs">Clear</a>{{ end }}
+</form>
+
+<div class="table-wrap" id="jobs-table" hx-get="/partials/jobs?status={{ .Status }}&type={{ .Type }}" hx-trigger="every 5s, refresh from:body" hx-swap="innerHTML" data-refresh-on-action>
+  {{ template "jobs_rows" . }}
+</div>
+{{ end }}
+
+{{ define "modals" }}
+<div class="modal-root" id="modal-create-job" aria-hidden="true">
+  <div class="modal" role="dialog" aria-labelledby="modal-create-title">
+    <div class="modal-head">
+      <h3 id="modal-create-title">Create a job</h3>
+      <p class="muted" style="font-size: var(--fs-sm); margin: var(--sp-1) 0 0;">POST /jobs with an idempotency key. Workers will pick it up as soon as a slot frees.</p>
+    </div>
+    <form onsubmit="return window.GoFlow.submitCreateJob(event)">
+      <div class="modal-body stack-4">
+        <label class="field">
+          <span>Type</span>
+          <input class="input" name="type" required placeholder="email, webhook, …" />
+        </label>
+        <label class="field">
+          <span>Payload</span>
+          <input class="input" name="payload" required placeholder="arbitrary string the worker will see" />
+        </label>
+        <label class="field">
+          <span>Idempotency key <span class="faint">(optional — auto-generated)</span></span>
+          <input class="input mono" name="idem_key" placeholder="ui-1234…" />
+        </label>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn ghost" data-modal-close="modal-create-job">Cancel</button>
+        <button type="submit" class="btn primary">Create job</button>
+      </div>
+    </form>
+  </div>
+</div>
+{{ end }}

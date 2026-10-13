@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"goflow/metrics"
 	"goflow/model"
 	"goflow/retry"
 	"goflow/store"
@@ -19,10 +20,11 @@ type Worker struct {
 	baseBackoff time.Duration
 	jobTimeout  time.Duration
 	dlq         *store.DLQ
+	registry    *metrics.Registry
 	execute     func(model.Job) error
 }
 
-func NewWorker(id int, jobStore *store.JobStore, scheduler *retry.Scheduler, maxRetries int, baseBackoff time.Duration, jobTimeout time.Duration, dlq *store.DLQ) *Worker {
+func NewWorker(id int, jobStore *store.JobStore, scheduler *retry.Scheduler, maxRetries int, baseBackoff time.Duration, jobTimeout time.Duration, dlq *store.DLQ, registry *metrics.Registry) *Worker {
 	w := &Worker{
 		ID:          id,
 		store:       jobStore,
@@ -31,6 +33,7 @@ func NewWorker(id int, jobStore *store.JobStore, scheduler *retry.Scheduler, max
 		baseBackoff: baseBackoff,
 		jobTimeout:  jobTimeout,
 		dlq:         dlq,
+		registry:    registry,
 	}
 	w.execute = w.executeJob
 	return w
@@ -68,6 +71,9 @@ func (w *Worker) processJob(job model.Job) {
 
 	job.Status = model.JobRunning
 	w.store.Update(job)
+	w.registry.RecordStart()
+
+	start := time.Now()
 
 	fmt.Println(
 		"Worker :", w.ID,
@@ -80,6 +86,7 @@ func (w *Worker) processJob(job model.Job) {
 	if err == nil {
 		job.Status = model.JobCompleted
 		w.store.Update(job)
+		w.registry.RecordCompleted(job.Type, time.Since(start))
 
 		fmt.Println(
 			"Worker :", w.ID,
@@ -88,6 +95,8 @@ func (w *Worker) processJob(job model.Job) {
 
 		return
 	}
+
+	w.registry.RecordFailed(job.Type)
 
 	fmt.Println(
 		"Worker :", w.ID,
@@ -106,6 +115,7 @@ func (w *Worker) processJob(job model.Job) {
 			job.Status = model.JobFailed
 			w.store.Update(job)
 			w.dlq.Add(job)
+			w.registry.RecordDLQd()
 
 			fmt.Println("Retry cancelled during shutdown:", job.ID)
 		})
@@ -118,6 +128,7 @@ func (w *Worker) processJob(job model.Job) {
 		job.Status = model.JobFailed
 		w.store.Update(job)
 		w.dlq.Add(job)
+		w.registry.RecordDLQd()
 
 		fmt.Println("Retry rejected; scheduler stopping:", job.ID)
 		return
@@ -126,6 +137,7 @@ func (w *Worker) processJob(job model.Job) {
 	job.Status = model.JobFailed
 	w.store.Update(job)
 	w.dlq.Add(job)
+	w.registry.RecordDLQd()
 
 	fmt.Println(
 		"Job permanently failed :",

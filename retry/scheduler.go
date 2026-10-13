@@ -3,14 +3,16 @@ package retry
 import (
 	"context"
 	"fmt"
+	"goflow/metrics"
 	"goflow/model"
 	"sync"
 	"time"
 )
 
 type Scheduler struct {
-	jobs chan<- model.Job
-	ctx  context.Context
+	jobs     chan<- model.Job
+	ctx      context.Context
+	registry *metrics.Registry
 
 	cancel   context.CancelFunc
 	mu       sync.Mutex
@@ -19,13 +21,14 @@ type Scheduler struct {
 	stopOnce sync.Once
 }
 
-func NewScheduler(ctx context.Context, jobs chan<- model.Job) *Scheduler {
+func NewScheduler(ctx context.Context, jobs chan<- model.Job, registry *metrics.Registry) *Scheduler {
 	schedulerCtx, cancel := context.WithCancel(ctx)
 
 	return &Scheduler{
-		jobs:   jobs,
-		ctx:    schedulerCtx,
-		cancel: cancel,
+		jobs:     jobs,
+		ctx:      schedulerCtx,
+		cancel:   cancel,
+		registry: registry,
 	}
 }
 
@@ -51,6 +54,7 @@ func (s *Scheduler) Schedule(job model.Job, delay time.Duration, onCancel func()
 
 			select {
 			case s.jobs <- job:
+				s.registry.RecordRetried()
 			case <-s.ctx.Done():
 				onCancel()
 			}

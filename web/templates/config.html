@@ -1,0 +1,52 @@
+{{ define "content" }}
+<section class="page-header">
+  <div>
+    <span class="eyebrow">Runtime</span>
+    <h1>Configuration</h1>
+    <p class="muted" style="margin: var(--sp-2) 0 0;">Read-only view of the values this process was started with. Change them in your <span class="mono">.env</span> and restart.</p>
+  </div>
+</section>
+
+<div class="tiles" style="margin-bottom: 0;">
+  <div class="tile">
+    <span class="tile-label">HTTP port</span>
+    <div class="tile-value">{{ .Cfg.Port }}</div>
+    <div class="tile-foot">env PORT</div>
+  </div>
+  <div class="tile">
+    <span class="tile-label">Workers</span>
+    <div class="tile-value">{{ .Cfg.NumWorkers }}</div>
+    <div class="tile-foot">env NUM_WORKERS</div>
+  </div>
+  <div class="tile">
+    <span class="tile-label">Queue size</span>
+    <div class="tile-value">{{ .Cfg.JobQueueSize }}</div>
+    <div class="tile-foot">env JOB_QUEUE_SIZE</div>
+  </div>
+  <div class="tile">
+    <span class="tile-label">Job timeout</span>
+    <div class="tile-value">{{ .Cfg.JobTimeoutSeconds }}<span class="unit">s</span></div>
+    <div class="tile-foot">env JOB_TIMEOUT_SECONDS</div>
+  </div>
+  <div class="tile">
+    <span class="tile-label">Max retries</span>
+    <div class="tile-value">{{ .Cfg.MaxRetries }}</div>
+    <div class="tile-foot">env MAX_RETRIES</div>
+  </div>
+  <div class="tile">
+    <span class="tile-label">Base backoff</span>
+    <div class="tile-value">{{ .Cfg.BaseBackoffSeconds }}<span class="unit">s</span></div>
+    <div class="tile-foot">exponential · env BASE_BACKOFF_SECONDS</div>
+  </div>
+  <div class="tile">
+    <span class="tile-label">Shutdown timeout</span>
+    <div class="tile-value">{{ .Cfg.ShutdownTimeoutSeconds }}<span class="unit">s</span></div>
+    <div class="tile-foot">env SHUTDOWN_TIMEOUT_SECONDS</div>
+  </div>
+  <div class="tile accent">
+    <span class="tile-label">Build</span>
+    <div class="tile-value" style="font-size: var(--fs-lg);">GoFlow v0.1</div>
+    <div class="tile-foot">in-memory · gin · stdlib templates</div>
+  </div>
+</div>
+{{ end }}

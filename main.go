@@ -6,10 +6,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"goflow/config"
 	"goflow/handler"
+	"goflow/metrics"
 	"goflow/model"
 	"goflow/retry"
 	"goflow/service"
 	"goflow/store"
+	"goflow/web"
 	"goflow/worker"
 	"log"
 	"net/http"
@@ -17,6 +19,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -33,17 +36,32 @@ func main() {
 	jobs := make(chan model.Job, cfg.JobQueueSize)
 	dlq := store.NewDLQ()
 	jobStore := store.NewJobStore()
-	retryScheduler := retry.NewScheduler(ctx, jobs)
+
+	// Metrics: one registry shared by every goroutine. 720 ring slots
+	// at a 5s sampling interval = exactly one hour of history.
+	registry := metrics.New()
+	ring := metrics.NewRingBuffer(720)
+	sampler := metrics.NewSampler(registry, ring, jobs, dlq, 5*time.Second)
+	go sampler.Run(ctx)
+
+	retryScheduler := retry.NewScheduler(ctx, jobs, registry)
 	var wg sync.WaitGroup
 
 	for i := 1; i <= cfg.NumWorkers; i++ {
 		wg.Add(1)
-		w := worker.NewWorker(i, jobStore, retryScheduler, cfg.MaxRetries, cfg.BaseBackoff, cfg.JobTimeout, dlq)
+		w := worker.NewWorker(i, jobStore, retryScheduler, cfg.MaxRetries, cfg.BaseBackoff, cfg.JobTimeout, dlq, registry)
 		go w.Start(jobs, &wg)
 	}
 
-	jobService := service.NewJobService(jobs, jobStore)
+	jobService := service.NewJobService(jobs, jobStore, registry)
 	jobHandler := handler.NewJobHandler(jobService, dlq)
+	metricsHandler := handler.NewMetricsHandler(registry, ring, cfg)
+
+	tmpl, err := web.Parse()
+	if err != nil {
+		log.Fatalf("Failed to parse templates: %v", err)
+	}
+	pageHandler := handler.NewPageHandler(tmpl, jobService, dlq, registry, ring, cfg)
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -51,11 +69,38 @@ func main() {
 		})
 	})
 
-	r.POST("/jobs", jobHandler.CreateJob)
-	r.POST("/dlq/:id/retry", jobHandler.RetryDLQJob)
+	// HTML pages (serve the UI on same port as the API — monolith).
+	r.GET("/", pageHandler.Dashboard)
+	r.GET("/jobs", pageHandler.Jobs)
+	r.GET("/jobs/:id/view", pageHandler.JobDetail)
+	r.GET("/dlq", pageHandler.DLQ)
+	r.GET("/config", pageHandler.Config)
 
-	r.GET("/jobs/:id", jobHandler.GetJob)
-	r.GET("/dlq", jobHandler.GetDLQ)
+	// HTMX partials.
+	r.GET("/partials/tiles", pageHandler.PartialTiles)
+	r.GET("/partials/activity", pageHandler.PartialActivity)
+	r.GET("/partials/jobs", pageHandler.PartialJobs)
+	r.GET("/partials/dlq", pageHandler.PartialDLQ)
+
+	// Static assets, served from the embedded web/static directory.
+	r.StaticFS("/static", web.StaticFS())
+
+	// JSON API — keeping the content-negotiation simple by putting job
+	// JSON under /api so /jobs can be the HTML page.
+	r.POST("/jobs", jobHandler.CreateJob)
+	r.GET("/api/jobs", jobHandler.ListJobs)
+	r.GET("/api/jobs/:id", jobHandler.GetJob)
+
+	r.POST("/dlq/:id/retry", jobHandler.RetryDLQJob)
+	r.DELETE("/dlq/:id", jobHandler.DeleteDLQJob)
+	r.POST("/dlq/retry-all", jobHandler.RetryAllDLQ)
+	r.POST("/dlq/purge", jobHandler.PurgeDLQ)
+	r.GET("/api/dlq", jobHandler.GetDLQ)
+
+	api := r.Group("/api")
+	api.GET("/metrics/snapshot", metricsHandler.Snapshot)
+	api.GET("/metrics/timeseries", metricsHandler.TimeSeries)
+	api.GET("/config", metricsHandler.ConfigView)
 
 	server := &http.Server{
 		Addr:    ":" + cfg.Port,

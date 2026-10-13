@@ -79,3 +79,23 @@ func (s *JobStore) Get(id string) (model.Job, bool) {
 	job, exists := s.jobs[id]
 	return job, exists
 }
+
+// List returns a snapshot of all jobs. The caller receives a copy, so
+// mutating the returned slice does not affect the store.
+func (s *JobStore) List() []model.Job {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	jobs := make([]model.Job, 0, len(s.jobs))
+	for _, j := range s.jobs {
+		jobs = append(jobs, j)
+	}
+	return jobs
+}
+
+func (s *JobStore) Size() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	return len(s.jobs)
+}
