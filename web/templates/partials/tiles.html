@@ -1,7 +1,8 @@
 {{ define "tiles" }}
+{{ with .Tiles }}
 <div class="tiles">
   <div class="tile accent">
-    <span class="tile-label">Throughput</span>
+    <span class="tile-label">Throughput{{ if .Queue }} · {{ .Queue }}{{ end }}</span>
     <div class="tile-value">{{ printf "%.2f" .ThroughputPerSec }}<span class="unit">/ sec</span></div>
     <div class="tile-foot">rolling 60s</div>
   </div>
@@ -9,21 +10,21 @@
   <div class="tile {{ if ge .SuccessRate 95.0 }}success{{ else if ge .SuccessRate 80.0 }}warning{{ else }}danger{{ end }}">
     <span class="tile-label">Success rate</span>
     <div class="tile-value">{{ printf "%.1f" .SuccessRate }}<span class="unit">%</span></div>
-    <div class="tile-foot">{{ .Snap.JobsCompleted }} of {{ .TotalTerminal }} finished</div>
+    <div class="tile-foot">{{ .Completed }} of {{ .TotalTerminal }} finished</div>
   </div>
 
   <div class="tile">
     <span class="tile-label">In flight</span>
-    <div class="tile-value">{{ .Snap.InFlight }}</div>
-    <div class="tile-foot">queue depth {{ .Snap.QueueDepth }} / {{ .QueueCap }}</div>
+    <div class="tile-value">{{ .InFlight }}</div>
+    <div class="tile-foot">{{ if .Queue }}queue "{{ .Queue }}"{{ else }}capacity {{ .QueueCap }}{{ end }}</div>
   </div>
 
-  <div class="tile {{ if gt .Snap.DLQSize 0 }}danger{{ end }}">
+  <div class="tile {{ if gt .DLQSize 0 }}danger{{ end }}">
     <span class="tile-label">Dead letter</span>
-    <div class="tile-value">{{ .Snap.DLQSize }}</div>
+    <div class="tile-value">{{ .DLQSize }}</div>
     <div class="tile-foot">
-      {{ if gt .Snap.DLQSize 0 }}
-        <a href="/dlq">Review →</a>
+      {{ if gt .DLQSize 0 }}
+        <a href="/dlq{{ if .Queue }}?queue={{ .Queue }}{{ end }}">Review →</a>
       {{ else }}
         all healthy
       {{ end }}
@@ -32,14 +33,15 @@
 
   <div class="tile">
     <span class="tile-label">P95 latency</span>
-    <div class="tile-value">{{ printf "%.0f" .Snap.Latency.P95 }}<span class="unit">ms</span></div>
-    <div class="tile-foot">p99 {{ printf "%.0f" .Snap.Latency.P99 }}ms · {{ .Snap.Latency.Count }} samples</div>
+    <div class="tile-value">{{ printf "%.0f" .P95Ms }}<span class="unit">ms</span></div>
+    <div class="tile-foot">p99 {{ printf "%.0f" .P99Ms }}ms · {{ .LatencyN }} samples</div>
   </div>
 
   <div class="tile">
-    <span class="tile-label">Workers</span>
-    <div class="tile-value">{{ .Workers }}</div>
-    <div class="tile-foot">retried {{ .Snap.JobsRetried }} · failed {{ .Snap.JobsFailed }}</div>
+    <span class="tile-label">{{ if .Queue }}Created{{ else }}Workers{{ end }}</span>
+    <div class="tile-value">{{ if .Queue }}{{ .Created }}{{ else }}{{ .Workers }}{{ end }}</div>
+    <div class="tile-foot">retried {{ .Retried }} · failed {{ .Failed }}</div>
   </div>
 </div>
+{{ end }}
 {{ end }}

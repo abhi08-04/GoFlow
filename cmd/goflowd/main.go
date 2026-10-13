@@ -63,7 +63,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// --- Reused learning-code wiring (same shape as original main.go) ---
+
 	jobs := make(chan model.Job, cfg.JobQueueSize)
 	jobStore := store.NewJobStore()
 	dlq := store.NewDLQ()
@@ -83,7 +83,20 @@ func main() {
 	go sweeper.Run(ctx)
 
 	// --- HTTP side (dashboard + JSON API, unchanged routes) ---
-	r := gin.Default()
+
+	gin.SetMode(gin.ReleaseMode)
+	r := gin.New()
+	r.Use(gin.LoggerWithConfig(gin.LoggerConfig{
+		SkipPaths: []string{
+			"/api/metrics/snapshot",
+			"/api/metrics/timeseries",
+			"/partials/tiles",
+			"/partials/activity",
+			"/partials/jobs",
+			"/partials/dlq",
+		},
+	}))
+	r.Use(gin.Recovery())
 	jobHandler := handler.NewJobHandler(jobService, dlq)
 	metricsHandler := handler.NewMetricsHandler(registry, ring, cfg)
 

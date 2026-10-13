@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
+	"sync"
 	"time"
 
 	"goflow/metrics"
@@ -35,6 +37,13 @@ type Broker struct {
 	leases      *LeaseStore
 	maxRetries  int
 	baseBackoff time.Duration
+
+	// Per-type routing: a background dispatcher reads from `jobs` and
+	// routes each item onto byType[job.Type] so a Consume stream that
+	// specified types=[a,b] can select only matching queues.
+	byType      map[string]chan model.Job
+	byTypeMu    sync.RWMutex
+	typeBufSize int
 }
 
 func NewBroker(
@@ -46,7 +55,7 @@ func NewBroker(
 	maxRetries int,
 	baseBackoff time.Duration,
 ) *Broker {
-	return &Broker{
+	b := &Broker{
 		jobs:        jobs,
 		store:       st,
 		dlq:         dlq,
@@ -55,39 +64,101 @@ func NewBroker(
 		leases:      NewLeaseStore(),
 		maxRetries:  maxRetries,
 		baseBackoff: baseBackoff,
+		byType:      make(map[string]chan model.Job),
+		typeBufSize: cap(jobs),
 	}
+	// Dispatcher: reads from the shared jobs chan and routes to the
+	// per-type sub-chan. Exits when jobs closes (on shutdown).
+	go b.dispatch()
+	return b
+}
+
+func (b *Broker) dispatch() {
+	for job := range b.jobs {
+		q := b.queueFor(job.Type)
+		q <- job
+	}
+}
+
+// queueFor returns the per-type chan, lazy-creating it on first use.
+// Buffer equals the shared jobs chan capacity so backpressure matches.
+func (b *Broker) queueFor(jobType string) chan model.Job {
+	b.byTypeMu.RLock()
+	q, ok := b.byType[jobType]
+	b.byTypeMu.RUnlock()
+	if ok {
+		return q
+	}
+	b.byTypeMu.Lock()
+	defer b.byTypeMu.Unlock()
+	if q, ok := b.byType[jobType]; ok {
+		return q
+	}
+	q = make(chan model.Job, b.typeBufSize)
+	b.byType[jobType] = q
+	return q
+}
+
+func (b *Broker) knownTypes() []string {
+	b.byTypeMu.RLock()
+	defer b.byTypeMu.RUnlock()
+	out := make([]string, 0, len(b.byType))
+	for t := range b.byType {
+		out = append(out, t)
+	}
+	return out
 }
 
 // Leases exposes the lease store for the sweeper and metrics.
 func (b *Broker) Leases() *LeaseStore { return b.leases }
 
-// Claim pulls the next job off the shared chan (or returns after
-// `wait` with no job), bumps attempts, marks the job running, and
-// issues a lease.
+// Claim pulls the next job matching `types` off its per-type queue
+// (or returns after `wait` with no job), bumps attempts, marks the
+// job running, and issues a lease.
+//
+// Empty `types` subscribes to every type currently known to the
+// broker. New types created after the Claim call will not be seen in
+// that case — callers that need "any type" over an unbounded set
+// should pass a specific list.
 //
 // Semantics mirror the original worker.processJob prologue: Attempts
 // is incremented on claim so Nack can decide retry vs DLQ by the same
 // rule the worker used.
-func (b *Broker) Claim(ctx context.Context, wait, lease time.Duration) (*Lease, bool, error) {
-	select {
-	case job, ok := <-b.jobs:
-		if !ok {
-			return nil, false, fmt.Errorf("broker: jobs channel closed")
-		}
-		job.Attempts++
-		job.Status = model.JobRunning
-		b.store.Update(job)
-		b.registry.RecordStart()
-
-		lease := b.leases.Issue(job, lease)
-		return lease, true, nil
-
-	case <-time.After(wait):
-		return nil, false, nil
-
-	case <-ctx.Done():
-		return nil, false, ctx.Err()
+func (b *Broker) Claim(ctx context.Context, types []string, wait, lease time.Duration) (*Lease, bool, error) {
+	if len(types) == 0 {
+		types = b.knownTypes()
 	}
+
+	// Build reflect select cases: ctx.Done, time.After, plus one per
+	// subscribed type's queue. reflect.Select picks the first ready.
+	cases := make([]reflect.SelectCase, 0, len(types)+2)
+	cases = append(cases, reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(ctx.Done())})
+	cases = append(cases, reflect.SelectCase{Dir: reflect.SelectRecv, Chan: reflect.ValueOf(time.After(wait))})
+	for _, t := range types {
+		cases = append(cases, reflect.SelectCase{
+			Dir:  reflect.SelectRecv,
+			Chan: reflect.ValueOf(b.queueFor(t)),
+		})
+	}
+
+	chosen, val, recvOK := reflect.Select(cases)
+	switch chosen {
+	case 0:
+		return nil, false, ctx.Err()
+	case 1:
+		return nil, false, nil // wait window elapsed, no job
+	}
+	if !recvOK {
+		return nil, false, fmt.Errorf("broker: queue closed for type %q", types[chosen-2])
+	}
+
+	job := val.Interface().(model.Job)
+	job.Attempts++
+	job.Status = model.JobRunning
+	b.store.Update(job)
+	b.registry.RecordStart()
+
+	return b.leases.Issue(job, lease), true, nil
 }
 
 // Ack marks a claimed job completed. Idempotent-ish: a second Ack for

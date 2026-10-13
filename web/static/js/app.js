@@ -188,11 +188,41 @@
     return false;
   }
 
+  // ---------- queue filter ----------
+  // Reloads the current page with ?queue=<value> (or removes it when
+  // "All queues" is picked). Also rewrites every HTMX polling URL on
+  // the page so live refreshes stay scoped to the selected queue.
+  function setQueueFilter(value) {
+    const url = new URL(window.location.href);
+    if (value) url.searchParams.set('queue', value);
+    else url.searchParams.delete('queue');
+    window.location.href = url.toString();
+  }
+  // Patch HTMX GET URLs so poll partials include the current ?queue=.
+  function applyQueueToHtmx() {
+    const current = new URL(window.location.href).searchParams.get('queue') || '';
+    document.querySelectorAll('[hx-get]').forEach(el => {
+      const raw = el.getAttribute('hx-get');
+      if (!raw) return;
+      const u = new URL(raw, window.location.origin);
+      if (current) u.searchParams.set('queue', current);
+      else u.searchParams.delete('queue');
+      el.setAttribute('hx-get', u.pathname + (u.search || ''));
+    });
+  }
+  // Run on load and after any HTMX swap (so swapped partials carry the filter too).
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', applyQueueToHtmx);
+  } else {
+    applyQueueToHtmx();
+  }
+  document.body && document.body.addEventListener('htmx:afterSwap', applyQueueToHtmx);
+
   // ---------- exports ----------
   window.GoFlow = Object.assign(window.GoFlow || {}, {
     toggleTheme, toast, openModal, closeModal, closeAllModals,
     doBulkRetry, doPurge, doRetryOne, doDeleteOne, submitCreateJob,
-    selectedIds, refreshPage,
+    selectedIds, refreshPage, setQueueFilter,
   });
 
   wireSelectAll();

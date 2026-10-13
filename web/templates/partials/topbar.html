@@ -5,6 +5,18 @@
     <div class="page-sub">{{ .Subtitle }}</div>
   </div>
   <div class="topbar-actions">
+    {{ if or (eq .Nav "dashboard") (eq .Nav "jobs") (eq .Nav "dlq") }}
+      <label class="row" style="gap: 6px; font-size: var(--fs-xs); color: var(--c-text-muted);">
+        <span>Queue</span>
+        <select class="select" style="min-width: 160px; padding: 4px 10px;"
+                onchange="window.GoFlow.setQueueFilter(this.value)" aria-label="Queue filter">
+          <option value="" {{ if eq .Queue "" }}selected{{ end }}>All queues</option>
+          {{ range .AllQueues }}
+            <option value="{{ . }}" {{ if eq . $.Queue }}selected{{ end }}>{{ . }}</option>
+          {{ end }}
+        </select>
+      </label>
+    {{ end }}
     <span class="row" style="font-size: var(--fs-xs); color: var(--c-text-muted);" title="Live refresh every 5s">
       <span class="live-dot" aria-hidden="true"></span>
       <span>Live</span>

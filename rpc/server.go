@@ -171,7 +171,7 @@ func (s *Server) Consume(stream goflowv1.Broker_ConsumeServer) error {
 			return nil
 		}
 
-		leaseEntry, got, err := s.broker.Claim(stream.Context(), waitWindow, lease)
+		leaseEntry, got, err := s.broker.Claim(stream.Context(), startFrame.Types, waitWindow, lease)
 		if err != nil {
 			if stream.Context().Err() != nil {
 				return nil
