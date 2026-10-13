@@ -1,0 +1,40 @@
+# docker compose up
+#
+# Brings up the broker + a sample consumer. Produce from your host:
+#   go run ./examples/producer   # uses localhost:9090 by default
+version: "3.9"
+
+services:
+  goflow:
+    build: .
+    image: goflow:dev
+    ports:
+      - "8000:8000"   # dashboard
+      - "9090:9090"   # gRPC broker
+    environment:
+      PORT: "8000"
+      GRPC_PORT: "9090"
+      JOB_QUEUE_SIZE: "1000"
+      MAX_RETRIES: "3"
+      BASE_BACKOFF_SECONDS: "1"
+      SHUTDOWN_TIMEOUT_SECONDS: "10"
+      DEFAULT_LEASE_SECONDS: "60"
+      MAX_LEASE_SECONDS: "300"
+      LEASE_SWEEP_INTERVAL_SECONDS: "1"
+      MAX_PREFETCH: "64"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8000/ping || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile.consumer
+    image: goflow-consumer:dev
+    environment:
+      GOFLOW_URL: "goflow:9090"
+    depends_on:
+      goflow:
+        condition: service_healthy

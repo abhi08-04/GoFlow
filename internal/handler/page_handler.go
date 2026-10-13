@@ -65,7 +65,7 @@ type dashboardVM struct {
 	SuccessRate      float64
 	TotalTerminal    int64
 	QueueCap         int
-	Workers          int
+	MaxPrefetch      int
 }
 
 func (h *PageHandler) buildDashboardVM() dashboardVM {
@@ -133,7 +133,7 @@ func (h *PageHandler) buildDashboardVM() dashboardVM {
 		SuccessRate:      success,
 		TotalTerminal:    totalTerm,
 		QueueCap:         h.cfg.JobQueueSize,
-		Workers:          h.cfg.NumWorkers,
+		MaxPrefetch:      h.cfg.MaxPrefetch,
 	}
 }
 
@@ -243,24 +243,30 @@ func (h *PageHandler) PartialDLQ(c *gin.Context) {
 type configVM struct {
 	baseVM
 	Cfg struct {
-		Port                   string
-		NumWorkers             int
-		JobQueueSize           int
-		JobTimeoutSeconds      int
-		MaxRetries             int
-		BaseBackoffSeconds     int
-		ShutdownTimeoutSeconds int
+		Port                       string
+		GrpcPort                   string
+		JobQueueSize               int
+		MaxRetries                 int
+		BaseBackoffSeconds         int
+		ShutdownTimeoutSeconds     int
+		DefaultLeaseSeconds        int
+		MaxLeaseSeconds            int
+		LeaseSweepIntervalSeconds  int
+		MaxPrefetch                int
 	}
 }
 
 func (h *PageHandler) Config(c *gin.Context) {
 	vm := configVM{baseVM: h.base("config", "Configuration", "Runtime values this process was started with")}
 	vm.Cfg.Port = h.cfg.Port
-	vm.Cfg.NumWorkers = h.cfg.NumWorkers
+	vm.Cfg.GrpcPort = h.cfg.GrpcPort
 	vm.Cfg.JobQueueSize = h.cfg.JobQueueSize
-	vm.Cfg.JobTimeoutSeconds = int(h.cfg.JobTimeout.Seconds())
 	vm.Cfg.MaxRetries = h.cfg.MaxRetries
 	vm.Cfg.BaseBackoffSeconds = int(h.cfg.BaseBackoff.Seconds())
 	vm.Cfg.ShutdownTimeoutSeconds = int(h.cfg.ShutdownTimeout.Seconds())
+	vm.Cfg.DefaultLeaseSeconds = int(h.cfg.DefaultLease.Seconds())
+	vm.Cfg.MaxLeaseSeconds = int(h.cfg.MaxLease.Seconds())
+	vm.Cfg.LeaseSweepIntervalSeconds = int(h.cfg.LeaseSweepInterval.Seconds())
+	vm.Cfg.MaxPrefetch = h.cfg.MaxPrefetch
 	_ = h.tmpl.Render(c.Writer, "config", vm)
 }

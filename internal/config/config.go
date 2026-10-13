@@ -10,14 +10,16 @@ import (
 )
 
 type Config struct {
-	Port            string
-	GrpcPort        string
-	NumWorkers      int
-	JobQueueSize    int
-	JobTimeout      time.Duration
-	MaxRetries      int
-	BaseBackoff     time.Duration
-	ShutdownTimeout time.Duration
+	Port                  string
+	GrpcPort              string
+	JobQueueSize          int
+	MaxRetries            int
+	BaseBackoff           time.Duration
+	ShutdownTimeout       time.Duration
+	DefaultLease          time.Duration
+	MaxLease              time.Duration
+	LeaseSweepInterval    time.Duration
+	MaxPrefetch           int
 }
 
 func Load() (Config, error) {
@@ -33,17 +35,7 @@ func LoadFromEnv() (Config, error) {
 
 	grpcPort := getStringWithDefault("GRPC_PORT", "9090")
 
-	numWorkers, err := getInt("NUM_WORKERS")
-	if err != nil {
-		return Config{}, err
-	}
-
 	queueSize, err := getInt("JOB_QUEUE_SIZE")
-	if err != nil {
-		return Config{}, err
-	}
-
-	jobTimeout, err := getSeconds("JOB_TIMEOUT_SECONDS")
 	if err != nil {
 		return Config{}, err
 	}
@@ -63,15 +55,22 @@ func LoadFromEnv() (Config, error) {
 		return Config{}, err
 	}
 
+	defaultLease := time.Duration(getIntWithDefault("DEFAULT_LEASE_SECONDS", 60)) * time.Second
+	maxLease := time.Duration(getIntWithDefault("MAX_LEASE_SECONDS", 300)) * time.Second
+	sweepInterval := time.Duration(getIntWithDefault("LEASE_SWEEP_INTERVAL_SECONDS", 1)) * time.Second
+	maxPrefetch := getIntWithDefault("MAX_PREFETCH", 64)
+
 	cfg := Config{
-		Port:            port,
-		GrpcPort:        grpcPort,
-		NumWorkers:      numWorkers,
-		JobQueueSize:    queueSize,
-		JobTimeout:      jobTimeout,
-		MaxRetries:      maxRetries,
-		BaseBackoff:     baseBackoff,
-		ShutdownTimeout: shutdownTimeout,
+		Port:               port,
+		GrpcPort:           grpcPort,
+		JobQueueSize:       queueSize,
+		MaxRetries:         maxRetries,
+		BaseBackoff:        baseBackoff,
+		ShutdownTimeout:    shutdownTimeout,
+		DefaultLease:       defaultLease,
+		MaxLease:           maxLease,
+		LeaseSweepInterval: sweepInterval,
+		MaxPrefetch:        maxPrefetch,
 	}
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
@@ -101,16 +100,8 @@ func (c Config) Validate() error {
 		return fmt.Errorf("GRPC_PORT must differ from PORT")
 	}
 
-	if c.NumWorkers <= 0 {
-		return fmt.Errorf("NUM_WORKERS must be greater than 0")
-	}
-
 	if c.JobQueueSize <= 0 {
 		return fmt.Errorf("JOB_QUEUE_SIZE must be greater than 0")
-	}
-
-	if c.JobTimeout <= 0 {
-		return fmt.Errorf("JOB_TIMEOUT_SECONDS must be greater than 0")
 	}
 
 	if c.MaxRetries < 0 {
@@ -123,6 +114,16 @@ func (c Config) Validate() error {
 
 	if c.ShutdownTimeout <= 0 {
 		return fmt.Errorf("SHUTDOWN_TIMEOUT_SECONDS must be greater than 0")
+	}
+
+	if c.DefaultLease <= 0 || c.MaxLease <= 0 || c.LeaseSweepInterval <= 0 {
+		return fmt.Errorf("lease duration/sweep values must be greater than 0")
+	}
+	if c.MaxLease < c.DefaultLease {
+		return fmt.Errorf("MAX_LEASE_SECONDS must be >= DEFAULT_LEASE_SECONDS")
+	}
+	if c.MaxPrefetch <= 0 {
+		return fmt.Errorf("MAX_PREFETCH must be greater than 0")
 	}
 
 	return nil
@@ -148,12 +149,23 @@ func getInt(key string) (int, error) {
 	if raw == "" {
 		return 0, fmt.Errorf("missing required env var: %s", key)
 	}
-
 	v, err := strconv.Atoi(raw)
 	if err != nil {
 		return 0, fmt.Errorf("invalid int for env var %s: %w", key, err)
 	}
 	return v, nil
+}
+
+func getIntWithDefault(key string, fallback int) int {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return fallback
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return fallback
+	}
+	return v
 }
 
 func getSeconds(key string) (time.Duration, error) {

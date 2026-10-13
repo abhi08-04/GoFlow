@@ -16,12 +16,13 @@ import (
 // avoids the write-lock cost that a plain map + RWMutex would pay on
 // every lookup.
 type Registry struct {
-	jobsCreated   atomic.Int64
-	jobsCompleted atomic.Int64
-	jobsFailed    atomic.Int64
-	jobsRetried   atomic.Int64
-	jobsDLQd      atomic.Int64
-	jobsRequeued  atomic.Int64
+	jobsCreated      atomic.Int64
+	jobsCompleted    atomic.Int64
+	jobsFailed       atomic.Int64
+	jobsRetried      atomic.Int64
+	jobsDLQd         atomic.Int64
+	jobsRequeued     atomic.Int64
+	jobsLeaseExpired atomic.Int64
 
 	queueDepth atomic.Int64
 	dlqSize    atomic.Int64
@@ -61,9 +62,10 @@ func (r *Registry) RecordFailed(jobType string) {
 	r.perType(jobType).Failed.Add(1)
 }
 
-func (r *Registry) RecordRetried()  { r.jobsRetried.Add(1) }
-func (r *Registry) RecordDLQd()     { r.jobsDLQd.Add(1) }
-func (r *Registry) RecordRequeued() { r.jobsRequeued.Add(1) }
+func (r *Registry) RecordRetried()      { r.jobsRetried.Add(1) }
+func (r *Registry) RecordDLQd()         { r.jobsDLQd.Add(1) }
+func (r *Registry) RecordRequeued()     { r.jobsRequeued.Add(1) }
+func (r *Registry) RecordLeaseExpired() { r.jobsLeaseExpired.Add(1) }
 
 // Gauges are set by the sampler each tick from authoritative sources
 // (len(chan), DLQ.Size()) so counter-skew bugs can't drift them.
@@ -79,18 +81,19 @@ func (r *Registry) perType(t string) *typeCounters {
 }
 
 type Snapshot struct {
-	JobsCreated   int64                   `json:"jobs_created"`
-	JobsCompleted int64                   `json:"jobs_completed"`
-	JobsFailed    int64                   `json:"jobs_failed"`
-	JobsRetried   int64                   `json:"jobs_retried"`
-	JobsDLQd      int64                   `json:"jobs_dlqd"`
-	JobsRequeued  int64                   `json:"jobs_requeued"`
-	QueueDepth    int64                   `json:"queue_depth"`
-	DLQSize       int64                   `json:"dlq_size"`
-	InFlight      int64                   `json:"in_flight"`
-	ByType        map[string]TypeSnapshot `json:"by_type"`
-	Latency       LatencySnapshot         `json:"latency_ms"`
-	Timestamp     time.Time               `json:"timestamp"`
+	JobsCreated      int64                   `json:"jobs_created"`
+	JobsCompleted    int64                   `json:"jobs_completed"`
+	JobsFailed       int64                   `json:"jobs_failed"`
+	JobsRetried      int64                   `json:"jobs_retried"`
+	JobsDLQd         int64                   `json:"jobs_dlqd"`
+	JobsRequeued     int64                   `json:"jobs_requeued"`
+	JobsLeaseExpired int64                   `json:"jobs_lease_expired"`
+	QueueDepth       int64                   `json:"queue_depth"`
+	DLQSize          int64                   `json:"dlq_size"`
+	InFlight         int64                   `json:"in_flight"`
+	ByType           map[string]TypeSnapshot `json:"by_type"`
+	Latency          LatencySnapshot         `json:"latency_ms"`
+	Timestamp        time.Time               `json:"timestamp"`
 }
 
 type TypeSnapshot struct {
@@ -111,18 +114,19 @@ type LatencySnapshot struct {
 // acceptable for a dashboard, and far cheaper than taking a global lock.
 func (r *Registry) Snapshot() Snapshot {
 	s := Snapshot{
-		JobsCreated:   r.jobsCreated.Load(),
-		JobsCompleted: r.jobsCompleted.Load(),
-		JobsFailed:    r.jobsFailed.Load(),
-		JobsRetried:   r.jobsRetried.Load(),
-		JobsDLQd:      r.jobsDLQd.Load(),
-		JobsRequeued:  r.jobsRequeued.Load(),
-		QueueDepth:    r.queueDepth.Load(),
-		DLQSize:       r.dlqSize.Load(),
-		InFlight:      r.inFlight.Load(),
-		ByType:        make(map[string]TypeSnapshot),
-		Latency:       r.latency.snapshot(),
-		Timestamp:     time.Now(),
+		JobsCreated:      r.jobsCreated.Load(),
+		JobsCompleted:    r.jobsCompleted.Load(),
+		JobsFailed:       r.jobsFailed.Load(),
+		JobsRetried:      r.jobsRetried.Load(),
+		JobsDLQd:         r.jobsDLQd.Load(),
+		JobsRequeued:     r.jobsRequeued.Load(),
+		JobsLeaseExpired: r.jobsLeaseExpired.Load(),
+		QueueDepth:       r.queueDepth.Load(),
+		DLQSize:          r.dlqSize.Load(),
+		InFlight:         r.inFlight.Load(),
+		ByType:           make(map[string]TypeSnapshot),
+		Latency:          r.latency.snapshot(),
+		Timestamp:        time.Now(),
 	}
 	r.byType.Range(func(k, v any) bool {
 		tc := v.(*typeCounters)

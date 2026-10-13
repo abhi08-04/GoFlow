@@ -8,25 +8,20 @@
 </section>
 
 <div class="tiles" style="margin-bottom: 0;">
-  <div class="tile">
+  <div class="tile accent">
     <span class="tile-label">HTTP port</span>
     <div class="tile-value">{{ .Cfg.Port }}</div>
-    <div class="tile-foot">env PORT</div>
+    <div class="tile-foot">env PORT · dashboard + JSON</div>
   </div>
-  <div class="tile">
-    <span class="tile-label">Workers</span>
-    <div class="tile-value">{{ .Cfg.NumWorkers }}</div>
-    <div class="tile-foot">env NUM_WORKERS</div>
+  <div class="tile accent">
+    <span class="tile-label">gRPC port</span>
+    <div class="tile-value">{{ .Cfg.GrpcPort }}</div>
+    <div class="tile-foot">env GRPC_PORT · broker protocol</div>
   </div>
   <div class="tile">
     <span class="tile-label">Queue size</span>
     <div class="tile-value">{{ .Cfg.JobQueueSize }}</div>
-    <div class="tile-foot">env JOB_QUEUE_SIZE</div>
-  </div>
-  <div class="tile">
-    <span class="tile-label">Job timeout</span>
-    <div class="tile-value">{{ .Cfg.JobTimeoutSeconds }}<span class="unit">s</span></div>
-    <div class="tile-foot">env JOB_TIMEOUT_SECONDS</div>
+    <div class="tile-foot">env JOB_QUEUE_SIZE · pending cap</div>
   </div>
   <div class="tile">
     <span class="tile-label">Max retries</span>
@@ -39,14 +34,29 @@
     <div class="tile-foot">exponential · env BASE_BACKOFF_SECONDS</div>
   </div>
   <div class="tile">
+    <span class="tile-label">Default lease</span>
+    <div class="tile-value">{{ .Cfg.DefaultLeaseSeconds }}<span class="unit">s</span></div>
+    <div class="tile-foot">env DEFAULT_LEASE_SECONDS</div>
+  </div>
+  <div class="tile">
+    <span class="tile-label">Max lease</span>
+    <div class="tile-value">{{ .Cfg.MaxLeaseSeconds }}<span class="unit">s</span></div>
+    <div class="tile-foot">env MAX_LEASE_SECONDS</div>
+  </div>
+  <div class="tile">
+    <span class="tile-label">Max prefetch</span>
+    <div class="tile-value">{{ .Cfg.MaxPrefetch }}</div>
+    <div class="tile-foot">env MAX_PREFETCH · per-consumer</div>
+  </div>
+  <div class="tile">
+    <span class="tile-label">Sweep interval</span>
+    <div class="tile-value">{{ .Cfg.LeaseSweepIntervalSeconds }}<span class="unit">s</span></div>
+    <div class="tile-foot">env LEASE_SWEEP_INTERVAL_SECONDS</div>
+  </div>
+  <div class="tile">
     <span class="tile-label">Shutdown timeout</span>
     <div class="tile-value">{{ .Cfg.ShutdownTimeoutSeconds }}<span class="unit">s</span></div>
     <div class="tile-foot">env SHUTDOWN_TIMEOUT_SECONDS</div>
-  </div>
-  <div class="tile accent">
-    <span class="tile-label">Build</span>
-    <div class="tile-value" style="font-size: var(--fs-lg);">GoFlow v0.1</div>
-    <div class="tile-foot">in-memory · gin · stdlib templates</div>
   </div>
 </div>
 {{ end }}

@@ -1,0 +1,12 @@
+.git
+.github
+.vscode
+DOCS.md
+DOCS.pdf
+*.pdf
+Dockerfile*
+docker-compose.yml
+README.md
+LICENSE
+/tmp
+/examples/*/goflow_*

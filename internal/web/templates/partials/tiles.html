@@ -13,7 +13,7 @@
   </div>
 
   <div class="tile">
-    <span class="tile-label">In flight</span>
+    <span class="tile-label">Claimed</span>
     <div class="tile-value">{{ .Snap.InFlight }}</div>
     <div class="tile-foot">queue depth {{ .Snap.QueueDepth }} / {{ .QueueCap }}</div>
   </div>
@@ -36,10 +36,10 @@
     <div class="tile-foot">p99 {{ printf "%.0f" .Snap.Latency.P99 }}ms · {{ .Snap.Latency.Count }} samples</div>
   </div>
 
-  <div class="tile">
-    <span class="tile-label">Workers</span>
-    <div class="tile-value">{{ .Workers }}</div>
-    <div class="tile-foot">retried {{ .Snap.JobsRetried }} · failed {{ .Snap.JobsFailed }}</div>
+  <div class="tile {{ if gt .Snap.JobsLeaseExpired 0 }}warning{{ end }}">
+    <span class="tile-label">Lease timeouts</span>
+    <div class="tile-value">{{ .Snap.JobsLeaseExpired }}</div>
+    <div class="tile-foot">retried {{ .Snap.JobsRetried }} · prefetch cap {{ .MaxPrefetch }}</div>
   </div>
 </div>
 {{ end }}

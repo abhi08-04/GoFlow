@@ -3,38 +3,31 @@ package metrics
 import (
 	"context"
 	"time"
-
-	"goflow/internal/model"
 )
 
-// DLQSizer lets the sampler read DLQ depth without importing store
-// (and dragging in a cycle). store.Store satisfies this interface.
-type DLQSizer interface {
+// StoreGauges exposes the two numbers the sampler needs to read each
+// tick. Any store.Store satisfies this interface — kept local so this
+// package does not import store.
+type StoreGauges interface {
+	QueueDepth() int
 	DLQSize() int
 }
 
 // Sampler ticks on an interval, snapshots the registry, and pushes the
-// snapshot into the ring buffer. It reads len(jobs) and dlq.Size() each
-// tick so the queue-depth and dlq-size gauges stay in sync with reality
-// (as opposed to drifting if an event path forgets to +/-).
-//
-// len() on a channel is safe from any goroutine and does not block —
-// the runtime reads the buffered count atomically from the hchan header.
+// snapshot into the ring buffer. QueueDepth and DLQSize are read from
+// the store so the gauges reflect authoritative state instead of
+// drifting from +/- increments.
 type Sampler struct {
 	registry *Registry
 	ring     *RingBuffer
-	jobs     chan model.Job
-	dlq      DLQSizer
+	store    StoreGauges
 	interval time.Duration
 }
 
-func NewSampler(r *Registry, ring *RingBuffer, jobs chan model.Job, dlq DLQSizer, interval time.Duration) *Sampler {
-	return &Sampler{registry: r, ring: ring, jobs: jobs, dlq: dlq, interval: interval}
+func NewSampler(r *Registry, ring *RingBuffer, store StoreGauges, interval time.Duration) *Sampler {
+	return &Sampler{registry: r, ring: ring, store: store, interval: interval}
 }
 
-// Run blocks until ctx is cancelled. Intended to be launched as its own
-// goroutine from main. The initial snapshot is taken immediately so a
-// freshly started dashboard has one point to render.
 func (s *Sampler) Run(ctx context.Context) {
 	s.tick()
 
@@ -52,7 +45,7 @@ func (s *Sampler) Run(ctx context.Context) {
 }
 
 func (s *Sampler) tick() {
-	s.registry.SetQueueDepth(int64(len(s.jobs)))
-	s.registry.SetDLQSize(int64(s.dlq.DLQSize()))
+	s.registry.SetQueueDepth(int64(s.store.QueueDepth()))
+	s.registry.SetDLQSize(int64(s.store.DLQSize()))
 	s.ring.Add(s.registry.Snapshot())
 }

@@ -6,7 +6,7 @@
 GOBIN   := $(shell go env GOPATH)/bin
 BUF     := $(GOBIN)/buf
 
-.PHONY: all build test race run proto proto-tools proto-lint fmt tidy clean
+.PHONY: all build test race run proto proto-tools proto-lint fmt tidy clean docker docker-run compose
 
 all: build
 
@@ -41,3 +41,12 @@ tidy:
 
 clean:
 	rm -rf internal/rpc/gen/goflow
+
+docker:
+	docker build -t goflow:dev .
+
+docker-run: docker
+	docker run --rm -p 8000:8000 -p 9090:9090 goflow:dev
+
+compose:
+	docker compose up --build
