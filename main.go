@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/gin-gonic/gin"
 	"goflow/config"
 	"goflow/handler"
 	"goflow/model"
@@ -10,16 +11,19 @@ import (
 	"goflow/service"
 	"goflow/store"
 	"goflow/worker"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
-	"github.com/gin-gonic/gin"
 )
 
 func main() {
-	cfg := config.Load()
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("Failed to load config: %v", err)
+	}
 
 	r := gin.Default()
 
@@ -82,7 +86,7 @@ func main() {
 
 	retryScheduler.Stop()
 	close(jobs)
-	
+
 	workersDone := make(chan struct{})
 
 	go func() {

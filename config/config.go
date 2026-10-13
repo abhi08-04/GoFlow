@@ -1,7 +1,7 @@
 package config
 
 import (
-	"log"
+	"fmt"
 	"os"
 	"strconv"
 	"time"
@@ -9,7 +9,6 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// Config holds every tunable value for the app, loaded once at startup
 type Config struct {
 	Port            string
 	NumWorkers      int
@@ -20,44 +19,125 @@ type Config struct {
 	ShutdownTimeout time.Duration
 }
 
-// Load reads the .env file (if present) and parses every expected variable.
-
-func Load() Config {
-
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("Error loading .env file")
-	}
-
-	return Config{
-		Port:            getString("PORT"),
-		NumWorkers:      getInt("NUM_WORKERS"),
-		JobQueueSize:    getInt("JOB_QUEUE_SIZE"),
-		JobTimeout:      getSeconds("JOB_TIMEOUT_SECONDS"),
-		MaxRetries:      getInt("MAX_RETRIES"),
-		BaseBackoff:     getSeconds("BASE_BACKOFF_SECONDS"),
-		ShutdownTimeout: getSeconds("SHUTDOWN_TIMEOUT_SECONDS"),
-	}
+func Load() (Config, error) {
+	_ = godotenv.Load()
+	return LoadFromEnv()
 }
 
-// getString returns a required string env var, failing fast if it is empty.
-func getString(key string) string {
+func LoadFromEnv() (Config, error) {
+	port, err := getString("PORT")
+	if err != nil {
+		return Config{}, err
+	}
+
+	numWorkers, err := getInt("NUM_WORKERS")
+	if err != nil {
+		return Config{}, err
+	}
+
+	queueSize, err := getInt("JOB_QUEUE_SIZE")
+	if err != nil {
+		return Config{}, err
+	}
+
+	jobTimeout, err := getSeconds("JOB_TIMEOUT_SECONDS")
+	if err != nil {
+		return Config{}, err
+	}
+
+	maxRetries, err := getInt("MAX_RETRIES")
+	if err != nil {
+		return Config{}, err
+	}
+
+	baseBackoff, err := getSeconds("BASE_BACKOFF_SECONDS")
+	if err != nil {
+		return Config{}, err
+	}
+
+	shutdownTimeout, err := getSeconds("SHUTDOWN_TIMEOUT_SECONDS")
+	if err != nil {
+		return Config{}, err
+	}
+
+	cfg := Config{
+		Port:            port,
+		NumWorkers:      numWorkers,
+		JobQueueSize:    queueSize,
+		JobTimeout:      jobTimeout,
+		MaxRetries:      maxRetries,
+		BaseBackoff:     baseBackoff,
+		ShutdownTimeout: shutdownTimeout,
+	}
+	if err := cfg.Validate(); err != nil {
+		return Config{}, err
+	}
+
+	return cfg, nil
+}
+
+func (c Config) Validate() error {
+	if c.Port == "" {
+		return fmt.Errorf("PORT is required and must be non-empty")
+	}
+
+	port, err := strconv.Atoi(c.Port)
+	if err != nil || port < 1 || port > 65535 {
+		return fmt.Errorf("PORT must be a number between 1 and 65535")
+	}
+
+	if c.NumWorkers <= 0 {
+		return fmt.Errorf("NUM_WORKERS must be greater than 0")
+	}
+
+	if c.JobQueueSize <= 0 {
+		return fmt.Errorf("JOB_QUEUE_SIZE must be greater than 0")
+	}
+
+	if c.JobTimeout <= 0 {
+		return fmt.Errorf("JOB_TIMEOUT_SECONDS must be greater than 0")
+	}
+
+	if c.MaxRetries < 0 {
+		return fmt.Errorf("MAX_RETRIES must be greater than or equal to 0")
+	}
+
+	if c.BaseBackoff < 0 {
+		return fmt.Errorf("BASE_BACKOFF_SECONDS must be greater than or equal to 0")
+	}
+
+	if c.ShutdownTimeout <= 0 {
+		return fmt.Errorf("SHUTDOWN_TIMEOUT_SECONDS must be greater than 0")
+	}
+
+	return nil
+}
+
+func getString(key string) (string, error) {
 	v := os.Getenv(key)
 	if v == "" {
-		log.Fatalf("missing required env var: %s", key)
+		return "", fmt.Errorf("missing required env var: %s", key)
 	}
-	return v
+	return v, nil
 }
 
-// getInt parses a required integer env var.
-func getInt(key string) int {
-	v, err := strconv.Atoi(os.Getenv(key))
+func getInt(key string) (int, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return 0, fmt.Errorf("missing required env var: %s", key)
+	}
+
+	v, err := strconv.Atoi(raw)
 	if err != nil {
-		log.Fatalf("invalid int for env var %s: %v", key, err)
+		return 0, fmt.Errorf("invalid int for env var %s: %w", key, err)
 	}
-	return v
+	return v, nil
 }
 
-// getSeconds parses an integer env var and interprets it as a number of seconds.
-func getSeconds(key string) time.Duration {
-	return time.Duration(getInt(key)) * time.Second
+func getSeconds(key string) (time.Duration, error) {
+	seconds, err := getInt(key)
+	if err != nil {
+		return 0, err
+	}
+	return time.Duration(seconds) * time.Second, nil
 }
