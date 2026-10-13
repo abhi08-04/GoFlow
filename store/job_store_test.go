@@ -234,3 +234,103 @@ func TestJobStoreConcurrentIdempotentCreate(t *testing.T) {
 		t.Fatalf("queue length = %d, want 1", len(jobs))
 	}
 }
+
+func TestEnqueueRetrySuccess(t *testing.T) {
+	jobs := make(chan model.Job, 1)
+	jobStore := NewJobStore()
+
+	job := model.Job{
+		ID:       "job-123",
+		Type:     "email",
+		Payload:  "send welcome email",
+		Status:   model.JobPending,
+		Attempts: 0,
+	}
+
+	if !jobStore.EnqueueRetry(job, jobs) {
+		t.Fatal("expected retry enqueue to succeed")
+	}
+
+	if len(jobs) != 1 {
+		t.Fatalf("expected 1 queued job, got %d", len(jobs))
+	}
+
+	queuedJob := <-jobs
+	if queuedJob.ID != job.ID {
+		t.Fatalf("expected queued ID %q, got %q", job.ID, queuedJob.ID)
+	}
+
+	savedJob, exists := jobStore.Get(job.ID)
+	if !exists {
+		t.Fatal("expected job to exist in store")
+	}
+	if savedJob.Status != model.JobPending {
+		t.Fatalf("expected status %q, got %q", model.JobPending, savedJob.Status)
+	}
+}
+
+func TestEnqueueRetryQueueFull(t *testing.T) {
+	jobs := make(chan model.Job, 1)
+	jobs <- model.Job{ID: "existing-job"}
+
+	jobStore := NewJobStore()
+
+	originalJob := model.Job{
+		ID:       "job-123",
+		Type:     "email",
+		Payload:  "send welcome email",
+		Status:   model.JobFailed,
+		Attempts: 3,
+	}
+	jobStore.Update(originalJob)
+
+	retryJob := originalJob
+	retryJob.Status = model.JobPending
+	retryJob.Attempts = 0
+
+	if jobStore.EnqueueRetry(retryJob, jobs) {
+		t.Fatal("expected enqueue to fail when queue is full")
+	}
+
+	savedJob, exists := jobStore.Get(originalJob.ID)
+	if !exists {
+		t.Fatal("expected original job to remain in store")
+	}
+	if savedJob.Status != model.JobFailed {
+		t.Fatalf("expected status to remain %q, got %q", model.JobFailed, savedJob.Status)
+	}
+	if savedJob.Attempts != 3 {
+		t.Fatalf("expected attempts to remain 3, got %d", savedJob.Attempts)
+	}
+
+	if len(jobs) != 1 {
+		t.Fatalf("expected existing queue item to remain, got %d", len(jobs))
+	}
+}
+
+func TestCreateIdempotencyKeyJobMissing(t *testing.T) {
+	jobs := make(chan model.Job, 1)
+	jobStore := NewJobStore()
+
+	jobStore.idempotencyKeys["request-123"] = "missing-job"
+
+	job := model.Job{
+		ID:       "new-job",
+		Type:     "email",
+		Payload:  "send welcome email",
+		Status:   model.JobPending,
+		Attempts: 0,
+	}
+
+	_, created, err := jobStore.Create(job, "request-123", jobs)
+
+	if err == nil {
+		t.Fatal("expected error when idempotency key points to a missing job")
+	}
+	if created {
+		t.Fatal("expected created to be false")
+	}
+	if len(jobs) != 0 {
+		t.Fatalf("expected queue to remain empty, got %d jobs", len(jobs))
+	}
+}

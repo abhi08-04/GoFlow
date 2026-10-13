@@ -247,3 +247,65 @@ func TestFailedJobRetryIsEnqueued(t *testing.T) {
 		t.Fatal("expected job not to be in DLQ while retries remain")
 	}
 }
+
+func TestRetryEventuallyCompletesJob(t *testing.T) {
+	jobs := make(chan model.Job, 2)
+	jobStore := store.NewJobStore()
+	dlq := store.NewDLQ()
+	scheduler := retry.NewScheduler(context.Background(), jobs)
+	defer scheduler.Stop()
+
+	job := model.Job{
+		ID:     "eventual-success-job",
+		Status: model.JobPending,
+	}
+	jobStore.Update(job)
+
+	w := NewWorker(
+		1,
+		jobStore,
+		scheduler,
+		3,
+		10*time.Millisecond,
+		time.Second,
+		dlq,
+	)
+
+	var executions int
+	w.execute = func(model.Job) error {
+		executions++
+		if executions == 1 {
+			return errors.New("temporary failure")
+		}
+		return nil
+	}
+
+	// First attempt fails and schedules a retry.
+	w.processJob(job)
+
+	select {
+	case retriedJob := <-jobs:
+		// The scheduled retry is now processed as a second attempt.
+		w.processJob(retriedJob)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for scheduled retry")
+	}
+
+	savedJob, exists := jobStore.Get(job.ID)
+	if !exists {
+		t.Fatal("expected job to exist in store")
+	}
+	if savedJob.Status != model.JobCompleted {
+		t.Fatalf("expected status %q, got %q",
+			model.JobCompleted, savedJob.Status)
+	}
+	if savedJob.Attempts != 2 {
+		t.Fatalf("expected 2 attempts, got %d", savedJob.Attempts)
+	}
+	if executions != 2 {
+		t.Fatalf("expected 2 executions, got %d", executions)
+	}
+	if len(dlq.GetAll()) != 0 {
+		t.Fatal("expected completed job not to be in DLQ")
+	}
+}

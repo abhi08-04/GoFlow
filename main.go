@@ -61,29 +61,44 @@ func main() {
 		Addr:    ":" + cfg.Port,
 		Handler: r,
 	}
-	go server.ListenAndServe()
+
+	serverErr := make(chan error, 1)
+
+	go func() {
+		serverErr <- server.ListenAndServe()
+	}()
 
 	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
 
-	signal.Notify(
-		quit,
-		syscall.SIGINT,
-		syscall.SIGTERM,
-	)
+	select {
+	case sig := <-quit:
+		fmt.Println("Received signal:", sig)
 
-	<-quit
-
-	cancel()
+	case err := <-serverErr:
+		if err != nil && err != http.ErrServerClosed {
+			log.Printf("HTTP server failed: %v", err)
+		}
+		return
+	}
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(
 		context.Background(),
 		cfg.ShutdownTimeout,
 	)
 	defer shutdownCancel()
+
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		fmt.Println("Server shutdown error:", err)
+		fmt.Println("Graceful HTTP shutdown failed:", err)
+
+		if closeErr := server.Close(); closeErr != nil {
+			fmt.Println("HTTP server close error:", closeErr)
+		}
 	}
 
+	// Stop retry scheduling before closing the jobs channel.
+	cancel()
 	retryScheduler.Stop()
 	close(jobs)
 
@@ -100,6 +115,6 @@ func main() {
 
 	case <-shutdownCtx.Done():
 		fmt.Println("Shutdown timeout exceeded; workers may not have finished")
-		return
 	}
+
 }
