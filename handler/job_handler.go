@@ -2,13 +2,12 @@ package handler
 
 import (
 	"errors"
-	"net/http"
+	"github.com/gin-gonic/gin"
 	"goflow/model"
 	"goflow/service"
 	"goflow/store"
-	"github.com/gin-gonic/gin"
+	"net/http"
 )
-
 
 type JobHandler struct {
 	dlq        *store.DLQ
@@ -17,7 +16,7 @@ type JobHandler struct {
 
 func NewJobHandler(jobService *service.JobService, dlq *store.DLQ) *JobHandler {
 	return &JobHandler{
-		dlq : dlq,
+		dlq:        dlq,
 		jobService: jobService,
 	}
 }
@@ -31,7 +30,7 @@ func (h *JobHandler) CreateJob(c *gin.Context) {
 		})
 		return
 	}
-	
+
 	idemKey := c.GetHeader("Idempotency-Key")
 	if idemKey == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -83,20 +82,10 @@ func (h *JobHandler) GetDLQ(c *gin.Context) {
 	c.JSON(http.StatusOK, jobs)
 }
 
-
-func (h *JobHandler) RetryDLQJob (c *gin.Context) {
+func (h *JobHandler) RetryDLQJob(c *gin.Context) {
 	id := c.Param("id")
-	var job model.Job
-	found := false
 
-	for _, dlqJob := range h.dlq.GetAll() {
-		if dlqJob.ID == id {
-			job = dlqJob
-			found = true
-			break
-		}
-	}
-
+	job, found := h.dlq.Claim(id)
 	if !found {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "job not found in DLQ",
@@ -105,17 +94,16 @@ func (h *JobHandler) RetryDLQJob (c *gin.Context) {
 	}
 
 	if !h.jobService.RetryJob(job) {
+		h.dlq.Add(job)
+
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"error": "job queue is full",
 		})
 		return
 	}
 
-	h.dlq.Remove(id)
-
 	c.JSON(http.StatusOK, gin.H{
 		"message": "job requeued successfully",
 		"id":      id,
 	})
-
 }

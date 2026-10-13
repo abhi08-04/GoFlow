@@ -1,19 +1,18 @@
 package store
 
 import (
-	"sync"
 	"goflow/model"
+	"sync"
 )
 
 type DLQ struct {
 	mu   sync.RWMutex
 	jobs map[string]model.Job
-
 }
 
-func NewDLQ () *DLQ {
-	return &DLQ {
-		jobs : make(map[string]model.Job),
+func NewDLQ() *DLQ {
+	return &DLQ{
+		jobs: make(map[string]model.Job),
 	}
 }
 
@@ -37,10 +36,22 @@ func (d *DLQ) GetAll() []model.Job {
 	return jobs
 }
 
-func (d *DLQ) Remove (id string) {
+func (d *DLQ) Claim(id string) (model.Job, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	delete (d.jobs, id)
+	job, exists := d.jobs[id]
+	if !exists {
+		return model.Job{}, false
+	}
+
+	delete(d.jobs, id)
+	return job, true
 }
 
+func (d *DLQ) Remove(id string) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	delete(d.jobs, id)
+}

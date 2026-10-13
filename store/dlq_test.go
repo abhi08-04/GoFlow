@@ -134,3 +134,47 @@ func TestDLQConcurrentAccess(t *testing.T) {
 
 	wg.Wait()
 }
+
+func TestDLQConcurrentClaimOnlyOneSucceeds(t *testing.T) {
+	dlq := NewDLQ()
+	dlq.Add(model.Job{
+		ID:     "job-1",
+		Type:   "email",
+		Status: model.JobFailed,
+	})
+
+	const count = 100
+
+	var wg sync.WaitGroup
+	var successCount int
+	var mu sync.Mutex
+
+	start := make(chan struct{})
+
+	for i := 0; i < count; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+			<-start
+
+			_, claimed := dlq.Claim("job-1")
+			if claimed {
+				mu.Lock()
+				successCount++
+				mu.Unlock()
+			}
+		}()
+	}
+
+	close(start)
+	wg.Wait()
+
+	if successCount != 1 {
+		t.Fatalf("successful claims = %d, want 1", successCount)
+	}
+
+	if got := dlq.GetAll(); len(got) != 0 {
+		t.Fatalf("DLQ contains %d jobs, want 0", len(got))
+	}
+}

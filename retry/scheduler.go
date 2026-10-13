@@ -2,20 +2,20 @@ package retry
 
 import (
 	"context"
-	"sync"
-	"time"
 	"fmt"
 	"goflow/model"
+	"sync"
+	"time"
 )
 
 type Scheduler struct {
 	jobs chan<- model.Job
 	ctx  context.Context
 
-	cancel context.CancelFunc
-	mu sync.Mutex
-	wg sync.WaitGroup
-	stopped bool
+	cancel   context.CancelFunc
+	mu       sync.Mutex
+	wg       sync.WaitGroup
+	stopped  bool
 	stopOnce sync.Once
 }
 
@@ -23,8 +23,8 @@ func NewScheduler(ctx context.Context, jobs chan<- model.Job) *Scheduler {
 	schedulerCtx, cancel := context.WithCancel(ctx)
 
 	return &Scheduler{
-		jobs: jobs,
-		ctx:  schedulerCtx,
+		jobs:   jobs,
+		ctx:    schedulerCtx,
 		cancel: cancel,
 	}
 }
