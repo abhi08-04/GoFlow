@@ -1,0 +1,118 @@
+// GoFlow broker protocol — v1.
+//
+// Any language with a gRPC client (Go, Node, Python, Java, …) can:
+//   1. Publish a job
+//   2. Open a Consume stream, receive pushed JobDelivery frames
+//   3. Ack / Nack each one back up the same stream
+//   4. Administer the DLQ
+//
+// v1 is intentionally minimal: no type filtering on consume (every
+// stream gets round-robin from the shared queue), no auth, no TLS.
+// All three are easy to add in later versions without breaking clients.
+
+syntax = "proto3";
+
+package goflow.v1;
+
+option go_package = "goflow/rpc/gen;goflowv1";
+
+import "google/protobuf/timestamp.proto";
+
+service Broker {
+  // Produce
+  rpc Publish(PublishRequest) returns (Job);
+  rpc GetJob(GetJobRequest) returns (Job);
+
+  // Consume — one bidi stream per consumer. Client sends StartConsume
+  // once, then Ack/Nack per delivery. Server pushes JobDelivery frames
+  // until stream closes.
+  rpc Consume(stream ClientFrame) returns (stream ServerFrame);
+
+  // Admin
+  rpc ListDLQ(ListDLQRequest) returns (ListDLQResponse);
+  rpc RetryDLQ(RetryDLQRequest) returns (RetryDLQResponse);
+  rpc PurgeDLQ(PurgeDLQRequest) returns (PurgeDLQResponse);
+}
+
+message Job {
+  string id = 1;
+  string type = 2;
+  bytes payload = 3;
+  string status = 4;          // pending|running|completed|failed
+  uint32 attempts = 5;
+  google.protobuf.Timestamp timestamp = 6;
+}
+
+message PublishRequest {
+  string type = 1;
+  bytes payload = 2;
+  string idempotency_key = 3;
+}
+
+message GetJobRequest {
+  string id = 1;
+}
+
+// --- Consume streaming ---
+
+message ClientFrame {
+  oneof kind {
+    StartConsume start = 1;
+    Ack ack = 2;
+    Nack nack = 3;
+  }
+}
+
+message StartConsume {
+  // Reserved for future type filtering; broker currently ignores this
+  // and gives any consumer any job in FIFO order from the shared queue.
+  repeated string types = 1;
+  // 0 = broker default (DEFAULT_LEASE_SECONDS).
+  uint32 lease_seconds = 2;
+  // How many un-acked deliveries may be in-flight; capped by server.
+  uint32 prefetch = 3;
+}
+
+message Ack {
+  string job_id = 1;
+  string lease_token = 2;
+}
+
+message Nack {
+  string job_id = 1;
+  string lease_token = 2;
+  string error = 3;
+}
+
+message ServerFrame {
+  oneof kind {
+    JobDelivery delivery = 1;
+  }
+}
+
+message JobDelivery {
+  Job job = 1;
+  string lease_token = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+// --- Admin ---
+
+message ListDLQRequest {}
+message ListDLQResponse {
+  repeated Job jobs = 1;
+}
+
+message RetryDLQRequest {
+  // Empty = retry everything in the DLQ.
+  repeated string ids = 1;
+}
+message RetryDLQResponse {
+  uint32 requeued = 1;
+  uint32 rejected = 2;
+}
+
+message PurgeDLQRequest {}
+message PurgeDLQResponse {
+  uint32 purged = 1;
+}
