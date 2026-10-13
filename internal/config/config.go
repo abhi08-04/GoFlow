@@ -31,6 +31,8 @@ func LoadFromEnv() (Config, error) {
 		return Config{}, err
 	}
 
+	grpcPort := getStringWithDefault("GRPC_PORT", "9090")
+
 	numWorkers, err := getInt("NUM_WORKERS")
 	if err != nil {
 		return Config{}, err
@@ -63,6 +65,7 @@ func LoadFromEnv() (Config, error) {
 
 	cfg := Config{
 		Port:            port,
+		GrpcPort:        grpcPort,
 		NumWorkers:      numWorkers,
 		JobQueueSize:    queueSize,
 		JobTimeout:      jobTimeout,
@@ -85,6 +88,17 @@ func (c Config) Validate() error {
 	port, err := strconv.Atoi(c.Port)
 	if err != nil || port < 1 || port > 65535 {
 		return fmt.Errorf("PORT must be a number between 1 and 65535")
+	}
+
+	if c.GrpcPort == "" {
+		return fmt.Errorf("GRPC_PORT is required and must be non-empty")
+	}
+	grpcPort, err := strconv.Atoi(c.GrpcPort)
+	if err != nil || grpcPort < 1 || grpcPort > 65535 {
+		return fmt.Errorf("GRPC_PORT must be a number between 1 and 65535")
+	}
+	if grpcPort == port {
+		return fmt.Errorf("GRPC_PORT must differ from PORT")
 	}
 
 	if c.NumWorkers <= 0 {
@@ -120,6 +134,13 @@ func getString(key string) (string, error) {
 		return "", fmt.Errorf("missing required env var: %s", key)
 	}
 	return v, nil
+}
+
+func getStringWithDefault(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }
 
 func getInt(key string) (int, error) {

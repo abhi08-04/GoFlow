@@ -3,23 +3,30 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/gin-gonic/gin"
-	"goflow/internal/config"
-	"goflow/internal/handler"
-	"goflow/internal/metrics"
-	"goflow/internal/model"
-	"goflow/internal/retry"
-	"goflow/internal/service"
-	"goflow/internal/store"
-	"goflow/internal/web"
-	"goflow/internal/worker"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/gin-gonic/gin"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+
+	"goflow/internal/config"
+	"goflow/internal/handler"
+	"goflow/internal/metrics"
+	"goflow/internal/model"
+	"goflow/internal/retry"
+	"goflow/internal/rpc"
+	goflowv1 "goflow/internal/rpc/gen/goflow/v1"
+	"goflow/internal/service"
+	"goflow/internal/store"
+	"goflow/internal/web"
+	"goflow/internal/worker"
 )
 
 func main() {
@@ -101,15 +108,35 @@ func main() {
 	api.GET("/metrics/timeseries", metricsHandler.TimeSeries)
 	api.GET("/config", metricsHandler.ConfigView)
 
-	server := &http.Server{
+	// --- HTTP (dashboard + legacy JSON) ---
+	httpServer := &http.Server{
 		Addr:    ":" + cfg.Port,
 		Handler: r,
 	}
 
-	serverErr := make(chan error, 1)
-
+	httpErr := make(chan error, 1)
 	go func() {
-		serverErr <- server.ListenAndServe()
+		fmt.Println("HTTP listening on :" + cfg.Port)
+		httpErr <- httpServer.ListenAndServe()
+	}()
+
+	// --- gRPC (broker protocol) ---
+	grpcLis, err := net.Listen("tcp", ":"+cfg.GrpcPort)
+	if err != nil {
+		log.Fatalf("gRPC listen on :%s failed: %v", cfg.GrpcPort, err)
+	}
+
+	grpcServer := grpc.NewServer()
+	brokerSrv := rpc.NewServer(st, jobService, registry)
+	goflowv1.RegisterBrokerServer(grpcServer, brokerSrv)
+	// Reflection lets grpcurl / Postman list services without a .proto file.
+	// Cheap, read-only, no auth implications on an unauthenticated port.
+	reflection.Register(grpcServer)
+
+	grpcErr := make(chan error, 1)
+	go func() {
+		fmt.Println("gRPC listening on :" + cfg.GrpcPort)
+		grpcErr <- grpcServer.Serve(grpcLis)
 	}()
 
 	quit := make(chan os.Signal, 1)
@@ -120,11 +147,15 @@ func main() {
 	case sig := <-quit:
 		fmt.Println("Received signal:", sig)
 
-	case err := <-serverErr:
+	case err := <-httpErr:
 		if err != nil && err != http.ErrServerClosed {
 			log.Printf("HTTP server failed: %v", err)
 		}
-		return
+
+	case err := <-grpcErr:
+		if err != nil {
+			log.Printf("gRPC server failed: %v", err)
+		}
 	}
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(
@@ -133,10 +164,26 @@ func main() {
 	)
 	defer shutdownCancel()
 
-	if err := server.Shutdown(shutdownCtx); err != nil {
+	// Stop accepting new RPCs; wait for in-flight unary + streaming
+	// calls to finish within shutdownCtx. If the context expires we
+	// fall back to Stop() which closes every connection immediately.
+	grpcStopped := make(chan struct{})
+	go func() {
+		grpcServer.GracefulStop()
+		close(grpcStopped)
+	}()
+	select {
+	case <-grpcStopped:
+		fmt.Println("gRPC server stopped gracefully")
+	case <-shutdownCtx.Done():
+		fmt.Println("gRPC shutdown timeout exceeded; forcing stop")
+		grpcServer.Stop()
+	}
+
+	if err := httpServer.Shutdown(shutdownCtx); err != nil {
 		fmt.Println("Graceful HTTP shutdown failed:", err)
 
-		if closeErr := server.Close(); closeErr != nil {
+		if closeErr := httpServer.Close(); closeErr != nil {
 			fmt.Println("HTTP server close error:", closeErr)
 		}
 	}

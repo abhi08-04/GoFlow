@@ -114,6 +114,7 @@ func TestLoadFromEnv(t *testing.T) {
 
 	want := Config{
 		Port:            "8080",
+		GrpcPort:        "9090",
 		NumWorkers:      3,
 		JobQueueSize:    10,
 		JobTimeout:      5 * time.Second,
@@ -150,6 +151,7 @@ func TestLoadFromEnvInvalidWorkers(t *testing.T) {
 func TestConfigValidate(t *testing.T) {
 	valid := Config{
 		Port:            "8080",
+		GrpcPort:        "9090",
 		NumWorkers:      3,
 		JobQueueSize:    10,
 		JobTimeout:      5 * time.Second,
