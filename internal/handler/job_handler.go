@@ -3,9 +3,9 @@ package handler
 import (
 	"errors"
 	"github.com/gin-gonic/gin"
-	"goflow/model"
-	"goflow/service"
-	"goflow/store"
+	"goflow/internal/model"
+	"goflow/internal/service"
+	"goflow/internal/store"
 	"net/http"
 )
 

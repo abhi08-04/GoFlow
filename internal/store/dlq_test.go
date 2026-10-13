@@ -4,7 +4,7 @@ import (
 	"sync"
 	"testing"
 
-	"goflow/model"
+	"goflow/internal/model"
 )
 
 func TestDLQAddAndGetAll(t *testing.T) {

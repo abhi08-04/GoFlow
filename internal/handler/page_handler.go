@@ -6,12 +6,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"goflow/config"
-	"goflow/metrics"
-	"goflow/model"
-	"goflow/service"
-	"goflow/store"
-	"goflow/web"
+	"goflow/internal/config"
+	"goflow/internal/metrics"
+	"goflow/internal/model"
+	"goflow/internal/service"
+	"goflow/internal/store"
+	"goflow/internal/web"
 )
 
 type PageHandler struct {

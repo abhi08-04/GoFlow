@@ -2,9 +2,9 @@ package service
 
 import (
 	"github.com/google/uuid"
-	"goflow/metrics"
-	"goflow/model"
-	"goflow/store"
+	"goflow/internal/metrics"
+	"goflow/internal/model"
+	"goflow/internal/store"
 )
 
 type JobService struct {

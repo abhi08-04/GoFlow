@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"goflow/model"
+	"goflow/internal/model"
 )
 
 // MemoryStore is the default in-process Store. It keeps two logically

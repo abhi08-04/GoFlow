@@ -3,8 +3,8 @@ package retry
 import (
 	"context"
 	"fmt"
-	"goflow/metrics"
-	"goflow/model"
+	"goflow/internal/metrics"
+	"goflow/internal/model"
 	"sync"
 	"testing"
 	"time"

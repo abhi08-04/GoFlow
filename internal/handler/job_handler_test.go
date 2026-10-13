@@ -7,10 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"goflow/metrics"
-	"goflow/model"
-	"goflow/service"
-	"goflow/store"
+	"goflow/internal/metrics"
+	"goflow/internal/model"
+	"goflow/internal/service"
+	"goflow/internal/store"
 
 	"github.com/gin-gonic/gin"
 )

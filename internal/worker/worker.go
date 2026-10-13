@@ -6,10 +6,10 @@ import (
 	"sync"
 	"time"
 
-	"goflow/metrics"
-	"goflow/model"
-	"goflow/retry"
-	"goflow/store"
+	"goflow/internal/metrics"
+	"goflow/internal/model"
+	"goflow/internal/retry"
+	"goflow/internal/store"
 )
 
 type Worker struct {

@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"goflow/metrics"
-	"goflow/model"
-	"goflow/retry"
-	"goflow/store"
+	"goflow/internal/metrics"
+	"goflow/internal/model"
+	"goflow/internal/retry"
+	"goflow/internal/store"
 )
 
 func TestCancelledRetryMarksJobFailedAndAddsToDLQ(t *testing.T) {

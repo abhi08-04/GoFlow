@@ -7,7 +7,7 @@ package store
 import (
 	"errors"
 
-	"goflow/model"
+	"goflow/internal/model"
 )
 
 // ErrQueueFull is returned when the backing jobs channel cannot accept

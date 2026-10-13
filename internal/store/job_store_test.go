@@ -5,7 +5,7 @@ import (
 	"sync"
 	"testing"
 
-	"goflow/model"
+	"goflow/internal/model"
 )
 
 func TestJobStoreCreate(t *testing.T) {

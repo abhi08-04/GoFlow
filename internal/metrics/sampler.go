@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"goflow/model"
+	"goflow/internal/model"
 )
 
 // DLQSizer lets the sampler read DLQ depth without importing store

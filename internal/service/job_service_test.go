@@ -2,9 +2,9 @@ package service
 
 import (
 	"fmt"
-	"goflow/metrics"
-	"goflow/model"
-	"goflow/store"
+	"goflow/internal/metrics"
+	"goflow/internal/model"
+	"goflow/internal/store"
 	"sync"
 	"testing"
 )
