@@ -1,0 +1,138 @@
+// GoFlow broker protocol — v1.
+//
+// Transport contract between the GoFlow broker and any client (Go,
+// Python, JS, …). The server never executes job work; clients open a
+// Consume stream, receive JobDelivery frames with a lease, and send
+// Ack / Nack frames back up the same stream.
+//
+// All timestamps are UTC. Payloads are opaque bytes — the server does
+// not inspect them. `idempotency_key` is required on Enqueue.
+
+syntax = "proto3";
+
+package goflow.v1;
+
+option go_package = "goflow/internal/rpc/gen;goflowv1";
+
+import "google/protobuf/timestamp.proto";
+
+service Broker {
+  // Produce
+  rpc Enqueue(EnqueueRequest) returns (Job);
+  rpc GetJob(GetJobRequest) returns (Job);
+
+  // Consume — one open stream per worker. Server pushes JobDelivery
+  // frames; client pushes StartConsume (opening frame), Ack, and Nack
+  // frames back. Closing either side ends the stream cleanly.
+  rpc Consume(stream ClientFrame) returns (stream ServerFrame);
+
+  // Admin — mirrored under /api/v1/* on the HTTP dashboard side.
+  rpc ListDLQ(ListDLQRequest) returns (ListDLQResponse);
+  rpc RetryDLQ(RetryDLQRequest) returns (RetryDLQResponse);
+  rpc PurgeDLQ(PurgeDLQRequest) returns (PurgeDLQResponse);
+  rpc DeleteDLQJob(DeleteDLQJobRequest) returns (DeleteDLQJobResponse);
+}
+
+// ---------- Messages ----------
+
+message Job {
+  string id = 1;
+  string type = 2;
+  bytes payload = 3;
+  // Status is a string so the wire protocol stays stable if we add new
+  // states; valid values today: pending | running | completed | failed.
+  string status = 4;
+  uint32 attempts = 5;
+  string last_error = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+}
+
+message EnqueueRequest {
+  string type = 1;
+  bytes payload = 2;
+  string idempotency_key = 3;
+  // 0 means "use server default (MAX_RETRIES env)".
+  uint32 max_retries = 4;
+}
+
+message GetJobRequest {
+  string id = 1;
+}
+
+// ---------- Consume streaming ----------
+
+message ClientFrame {
+  oneof kind {
+    StartConsume start = 1;
+    Ack ack = 2;
+    Nack nack = 3;
+  }
+}
+
+message StartConsume {
+  // One or more job types this consumer handles. Empty list = any type.
+  repeated string types = 1;
+  // Capped server-side by MAX_LEASE_SECONDS; 0 uses DEFAULT_LEASE_SECONDS.
+  uint32 lease_seconds = 2;
+  // How many un-acked deliveries the server may push ahead. Capped by
+  // MAX_PREFETCH. 0 is treated as 1 (strict backpressure).
+  uint32 prefetch = 3;
+}
+
+message Ack {
+  string job_id = 1;
+  string lease_token = 2;
+}
+
+message Nack {
+  string job_id = 1;
+  string lease_token = 2;
+  string error = 3;
+}
+
+message ServerFrame {
+  oneof kind {
+    JobDelivery delivery = 1;
+    LeaseWarning warning = 2;
+  }
+}
+
+message JobDelivery {
+  Job job = 1;
+  string lease_token = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+message LeaseWarning {
+  string job_id = 1;
+  google.protobuf.Timestamp expires_at = 2;
+}
+
+// ---------- Admin ----------
+
+message ListDLQRequest {}
+message ListDLQResponse {
+  repeated Job jobs = 1;
+}
+
+message RetryDLQRequest {
+  // Empty = retry all. Otherwise, specific IDs.
+  repeated string ids = 1;
+}
+message RetryDLQResponse {
+  uint32 requeued = 1;
+  uint32 rejected = 2;
+}
+
+message PurgeDLQRequest {}
+message PurgeDLQResponse {
+  uint32 purged = 1;
+}
+
+message DeleteDLQJobRequest {
+  string id = 1;
+}
+message DeleteDLQJobResponse {
+  string id = 1;
+}

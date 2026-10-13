@@ -1,0 +1,10 @@
+version: v2
+modules:
+  - path: proto
+    name: buf.build/goflow/goflow
+lint:
+  use:
+    - BASIC
+breaking:
+  use:
+    - FILE

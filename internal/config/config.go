@@ -11,6 +11,7 @@ import (
 
 type Config struct {
 	Port            string
+	GrpcPort        string
 	NumWorkers      int
 	JobQueueSize    int
 	JobTimeout      time.Duration
