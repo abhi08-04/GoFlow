@@ -17,13 +17,13 @@ import (
 type PageHandler struct {
 	tmpl       *web.Templates
 	jobService *service.JobService
-	dlq        *store.DLQ
+	dlq        store.Store
 	registry   *metrics.Registry
 	ring       *metrics.RingBuffer
 	cfg        config.Config
 }
 
-func NewPageHandler(t *web.Templates, j *service.JobService, dlq *store.DLQ, r *metrics.Registry, ring *metrics.RingBuffer, cfg config.Config) *PageHandler {
+func NewPageHandler(t *web.Templates, j *service.JobService, dlq store.Store, r *metrics.Registry, ring *metrics.RingBuffer, cfg config.Config) *PageHandler {
 	return &PageHandler{tmpl: t, jobService: j, dlq: dlq, registry: r, ring: ring, cfg: cfg}
 }
 
@@ -42,7 +42,7 @@ type baseVM struct {
 func (h *PageHandler) base(nav, title, subtitle string) baseVM {
 	return baseVM{
 		Title: title, Subtitle: subtitle, Nav: nav,
-		DLQCount: h.dlq.Size(), Port: h.cfg.Port,
+		DLQCount: h.dlq.DLQSize(), Port: h.cfg.Port,
 	}
 }
 
@@ -222,7 +222,7 @@ type dlqVM struct {
 }
 
 func (h *PageHandler) buildDLQVM() dlqVM {
-	jobs := h.dlq.GetAll()
+	jobs := h.dlq.DLQGetAll()
 	sort.Slice(jobs, func(i, j int) bool { return jobs[i].ID < jobs[j].ID })
 	return dlqVM{
 		baseVM:  h.base("dlq", "Dead Letter Queue", "Jobs that exhausted their retry budget"),

@@ -14,8 +14,7 @@ import (
 
 func TestCancelledRetryMarksJobFailedAndAddsToDLQ(t *testing.T) {
 	jobs := make(chan model.Job, 1)
-	jobStore := store.NewJobStore()
-	dlq := store.NewDLQ()
+	jobStore := store.NewMemoryStore()
 	scheduler := retry.NewScheduler(context.Background(), jobs, metrics.New())
 	defer scheduler.Stop()
 
@@ -33,7 +32,6 @@ func TestCancelledRetryMarksJobFailedAndAddsToDLQ(t *testing.T) {
 		1,
 		time.Hour,
 		time.Second,
-		dlq,
 		metrics.New(),
 	)
 
@@ -55,7 +53,7 @@ func TestCancelledRetryMarksJobFailedAndAddsToDLQ(t *testing.T) {
 			model.JobFailed, savedJob.Status)
 	}
 
-	dlqJobs := dlq.GetAll()
+	dlqJobs := jobStore.DLQGetAll()
 	if len(dlqJobs) != 1 {
 		t.Fatalf("expected 1 job in DLQ, got %d", len(dlqJobs))
 	}
@@ -75,8 +73,7 @@ func TestCancelledRetryMarksJobFailedAndAddsToDLQ(t *testing.T) {
 
 func TestSuccessfulJobExecution(t *testing.T) {
 	jobs := make(chan model.Job, 1)
-	jobStore := store.NewJobStore()
-	dlq := store.NewDLQ()
+	jobStore := store.NewMemoryStore()
 	scheduler := retry.NewScheduler(context.Background(), jobs, metrics.New())
 	defer scheduler.Stop()
 
@@ -93,7 +90,6 @@ func TestSuccessfulJobExecution(t *testing.T) {
 		3,
 		time.Second,
 		time.Second,
-		dlq,
 		metrics.New(),
 	)
 
@@ -118,7 +114,7 @@ func TestSuccessfulJobExecution(t *testing.T) {
 		t.Fatalf("expected 1 attempt, got %d", savedJob.Attempts)
 	}
 
-	if len(dlq.GetAll()) != 0 {
+	if len(jobStore.DLQGetAll()) != 0 {
 		t.Fatal("expected no jobs in DLQ after successful execution")
 	}
 
@@ -129,8 +125,7 @@ func TestSuccessfulJobExecution(t *testing.T) {
 
 func TestRetryExhaustionAddsJobToDLQ(t *testing.T) {
 	jobs := make(chan model.Job, 1)
-	jobStore := store.NewJobStore()
-	dlq := store.NewDLQ()
+	jobStore := store.NewMemoryStore()
 	scheduler := retry.NewScheduler(context.Background(), jobs, metrics.New())
 	defer scheduler.Stop()
 
@@ -148,7 +143,6 @@ func TestRetryExhaustionAddsJobToDLQ(t *testing.T) {
 		1,
 		time.Second,
 		time.Second,
-		dlq,
 		metrics.New(),
 	)
 
@@ -172,7 +166,7 @@ func TestRetryExhaustionAddsJobToDLQ(t *testing.T) {
 		t.Fatalf("expected 2 attempts, got %d", savedJob.Attempts)
 	}
 
-	dlqJobs := dlq.GetAll()
+	dlqJobs := jobStore.DLQGetAll()
 	if len(dlqJobs) != 1 {
 		t.Fatalf("expected 1 job in DLQ, got %d", len(dlqJobs))
 	}
@@ -189,8 +183,7 @@ func TestRetryExhaustionAddsJobToDLQ(t *testing.T) {
 
 func TestFailedJobRetryIsEnqueued(t *testing.T) {
 	jobs := make(chan model.Job, 1)
-	jobStore := store.NewJobStore()
-	dlq := store.NewDLQ()
+	jobStore := store.NewMemoryStore()
 	scheduler := retry.NewScheduler(context.Background(), jobs, metrics.New())
 	defer scheduler.Stop()
 
@@ -207,7 +200,6 @@ func TestFailedJobRetryIsEnqueued(t *testing.T) {
 		3,
 		10*time.Millisecond,
 		time.Second,
-		dlq,
 		metrics.New(),
 	)
 
@@ -248,15 +240,14 @@ func TestFailedJobRetryIsEnqueued(t *testing.T) {
 			model.JobPending, savedJob.Status)
 	}
 
-	if len(dlq.GetAll()) != 0 {
+	if len(jobStore.DLQGetAll()) != 0 {
 		t.Fatal("expected job not to be in DLQ while retries remain")
 	}
 }
 
 func TestRetryEventuallyCompletesJob(t *testing.T) {
 	jobs := make(chan model.Job, 2)
-	jobStore := store.NewJobStore()
-	dlq := store.NewDLQ()
+	jobStore := store.NewMemoryStore()
 	scheduler := retry.NewScheduler(context.Background(), jobs, metrics.New())
 	defer scheduler.Stop()
 
@@ -273,7 +264,6 @@ func TestRetryEventuallyCompletesJob(t *testing.T) {
 		3,
 		10*time.Millisecond,
 		time.Second,
-		dlq,
 		metrics.New(),
 	)
 
@@ -311,7 +301,7 @@ func TestRetryEventuallyCompletesJob(t *testing.T) {
 	if executions != 2 {
 		t.Fatalf("expected 2 executions, got %d", executions)
 	}
-	if len(dlq.GetAll()) != 0 {
+	if len(jobStore.DLQGetAll()) != 0 {
 		t.Fatal("expected completed job not to be in DLQ")
 	}
 }

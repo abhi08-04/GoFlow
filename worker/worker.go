@@ -14,17 +14,16 @@ import (
 
 type Worker struct {
 	ID          int
-	store       *store.JobStore
+	store       store.Store
 	scheduler   *retry.Scheduler
 	maxRetries  int
 	baseBackoff time.Duration
 	jobTimeout  time.Duration
-	dlq         *store.DLQ
 	registry    *metrics.Registry
 	execute     func(model.Job) error
 }
 
-func NewWorker(id int, jobStore *store.JobStore, scheduler *retry.Scheduler, maxRetries int, baseBackoff time.Duration, jobTimeout time.Duration, dlq *store.DLQ, registry *metrics.Registry) *Worker {
+func NewWorker(id int, jobStore store.Store, scheduler *retry.Scheduler, maxRetries int, baseBackoff time.Duration, jobTimeout time.Duration, registry *metrics.Registry) *Worker {
 	w := &Worker{
 		ID:          id,
 		store:       jobStore,
@@ -32,7 +31,6 @@ func NewWorker(id int, jobStore *store.JobStore, scheduler *retry.Scheduler, max
 		maxRetries:  maxRetries,
 		baseBackoff: baseBackoff,
 		jobTimeout:  jobTimeout,
-		dlq:         dlq,
 		registry:    registry,
 	}
 	w.execute = w.executeJob
@@ -114,7 +112,7 @@ func (w *Worker) processJob(job model.Job) {
 		scheduled := w.scheduler.Schedule(job, delay, func() {
 			job.Status = model.JobFailed
 			w.store.Update(job)
-			w.dlq.Add(job)
+			w.store.DLQAdd(job)
 			w.registry.RecordDLQd()
 
 			fmt.Println("Retry cancelled during shutdown:", job.ID)
@@ -127,7 +125,7 @@ func (w *Worker) processJob(job model.Job) {
 
 		job.Status = model.JobFailed
 		w.store.Update(job)
-		w.dlq.Add(job)
+		w.store.DLQAdd(job)
 		w.registry.RecordDLQd()
 
 		fmt.Println("Retry rejected; scheduler stopping:", job.ID)
@@ -136,7 +134,7 @@ func (w *Worker) processJob(job model.Job) {
 
 	job.Status = model.JobFailed
 	w.store.Update(job)
-	w.dlq.Add(job)
+	w.store.DLQAdd(job)
 	w.registry.RecordDLQd()
 
 	fmt.Println(

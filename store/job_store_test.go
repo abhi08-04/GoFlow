@@ -9,7 +9,7 @@ import (
 )
 
 func TestJobStoreCreate(t *testing.T) {
-	s := NewJobStore()
+	s := NewMemoryStore()
 	jobs := make(chan model.Job, 1)
 
 	job := model.Job{
@@ -46,7 +46,7 @@ func TestJobStoreCreate(t *testing.T) {
 }
 
 func TestJobStoreGetMissing(t *testing.T) {
-	s := NewJobStore()
+	s := NewMemoryStore()
 
 	_, exists := s.Get("missing")
 
@@ -56,7 +56,7 @@ func TestJobStoreGetMissing(t *testing.T) {
 }
 
 func TestJobStoreUpdate(t *testing.T) {
-	s := NewJobStore()
+	s := NewMemoryStore()
 
 	job := model.Job{
 		ID:     "job-1",
@@ -79,7 +79,7 @@ func TestJobStoreUpdate(t *testing.T) {
 }
 
 func TestJobStoreCreateIdempotent(t *testing.T) {
-	s := NewJobStore()
+	s := NewMemoryStore()
 	jobs := make(chan model.Job, 2)
 
 	job := model.Job{
@@ -116,7 +116,7 @@ func TestJobStoreCreateIdempotent(t *testing.T) {
 }
 
 func TestJobStoreCreateIdempotencyConflict(t *testing.T) {
-	s := NewJobStore()
+	s := NewMemoryStore()
 	jobs := make(chan model.Job, 2)
 
 	original := model.Job{
@@ -148,7 +148,7 @@ func TestJobStoreCreateIdempotencyConflict(t *testing.T) {
 }
 
 func TestJobStoreCreateQueueFullRollback(t *testing.T) {
-	s := NewJobStore()
+	s := NewMemoryStore()
 	jobs := make(chan model.Job)
 
 	job := model.Job{
@@ -184,7 +184,7 @@ func TestJobStoreCreateQueueFullRollback(t *testing.T) {
 }
 
 func TestJobStoreConcurrentIdempotentCreate(t *testing.T) {
-	s := NewJobStore()
+	s := NewMemoryStore()
 	jobs := make(chan model.Job, 20)
 
 	const requests = 20
@@ -237,7 +237,7 @@ func TestJobStoreConcurrentIdempotentCreate(t *testing.T) {
 
 func TestEnqueueRetrySuccess(t *testing.T) {
 	jobs := make(chan model.Job, 1)
-	jobStore := NewJobStore()
+	jobStore := NewMemoryStore()
 
 	job := model.Job{
 		ID:       "job-123",
@@ -273,7 +273,7 @@ func TestEnqueueRetryQueueFull(t *testing.T) {
 	jobs := make(chan model.Job, 1)
 	jobs <- model.Job{ID: "existing-job"}
 
-	jobStore := NewJobStore()
+	jobStore := NewMemoryStore()
 
 	originalJob := model.Job{
 		ID:       "job-123",
@@ -310,7 +310,7 @@ func TestEnqueueRetryQueueFull(t *testing.T) {
 
 func TestCreateIdempotencyKeyJobMissing(t *testing.T) {
 	jobs := make(chan model.Job, 1)
-	jobStore := NewJobStore()
+	jobStore := NewMemoryStore()
 
 	jobStore.idempotencyKeys["request-123"] = "missing-job"
 

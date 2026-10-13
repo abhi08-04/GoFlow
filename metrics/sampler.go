@@ -8,9 +8,9 @@ import (
 )
 
 // DLQSizer lets the sampler read DLQ depth without importing store
-// (and dragging in a cycle). *store.DLQ satisfies this interface.
+// (and dragging in a cycle). store.Store satisfies this interface.
 type DLQSizer interface {
-	Size() int
+	DLQSize() int
 }
 
 // Sampler ticks on an interval, snapshots the registry, and pushes the
@@ -53,6 +53,6 @@ func (s *Sampler) Run(ctx context.Context) {
 
 func (s *Sampler) tick() {
 	s.registry.SetQueueDepth(int64(len(s.jobs)))
-	s.registry.SetDLQSize(int64(s.dlq.Size()))
+	s.registry.SetDLQSize(int64(s.dlq.DLQSize()))
 	s.ring.Add(s.registry.Snapshot())
 }

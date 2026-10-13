@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-
+//go:embed templates static
 var files embed.FS
 
 var funcMap = template.FuncMap{

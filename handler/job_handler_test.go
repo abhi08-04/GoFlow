@@ -19,11 +19,10 @@ func setupJobHandler() (*gin.Engine, chan model.Job) {
 	gin.SetMode(gin.TestMode)
 
 	jobs := make(chan model.Job, 10)
-	jobStore := store.NewJobStore()
-	dlq := store.NewDLQ()
+	jobStore := store.NewMemoryStore()
 
 	jobService := service.NewJobService(jobs, jobStore, metrics.New())
-	jobHandler := NewJobHandler(jobService, dlq)
+	jobHandler := NewJobHandler(jobService, jobStore)
 
 	router := gin.New()
 	router.POST("/jobs", jobHandler.CreateJob)
@@ -202,20 +201,20 @@ func TestGetMissingJobHandler(t *testing.T) {
 }
 
 func TestGetDLQHandler(t *testing.T) {
-	router, _ := setupJobHandler()
+	gin.SetMode(gin.TestMode)
 
-	dlq := store.NewDLQ()
-	dlq.Add(model.Job{
+	jobStore := store.NewMemoryStore()
+	jobStore.DLQAdd(model.Job{
 		ID:      "failed-job",
 		Type:    "email",
 		Payload: "send email",
 		Status:  model.JobFailed,
 	})
 
-	jobService := service.NewJobService(make(chan model.Job, 1), store.NewJobStore(), metrics.New())
-	jobHandler := NewJobHandler(jobService, dlq)
+	jobService := service.NewJobService(make(chan model.Job, 1), jobStore, metrics.New())
+	jobHandler := NewJobHandler(jobService, jobStore)
 
-	router = gin.New()
+	router := gin.New()
 	router.GET("/dlq", jobHandler.GetDLQ)
 
 	req := httptest.NewRequest(http.MethodGet, "/dlq", nil)
@@ -242,8 +241,7 @@ func TestRetryDLQJobHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	jobs := make(chan model.Job, 1)
-	jobStore := store.NewJobStore()
-	dlq := store.NewDLQ()
+	jobStore := store.NewMemoryStore()
 
 	failedJob := model.Job{
 		ID:       "failed-job",
@@ -252,10 +250,10 @@ func TestRetryDLQJobHandler(t *testing.T) {
 		Status:   model.JobFailed,
 		Attempts: 3,
 	}
-	dlq.Add(failedJob)
+	jobStore.DLQAdd(failedJob)
 
 	jobService := service.NewJobService(jobs, jobStore, metrics.New())
-	jobHandler := NewJobHandler(jobService, dlq)
+	jobHandler := NewJobHandler(jobService, jobStore)
 
 	router := gin.New()
 	router.POST("/dlq/:id/retry", jobHandler.RetryDLQJob)
@@ -269,7 +267,7 @@ func TestRetryDLQJobHandler(t *testing.T) {
 			http.StatusOK, recorder.Code, recorder.Body.String())
 	}
 
-	if len(dlq.GetAll()) != 0 {
+	if len(jobStore.DLQGetAll()) != 0 {
 		t.Fatal("expected job to be removed from DLQ after retry")
 	}
 
@@ -289,11 +287,10 @@ func TestRetryMissingDLQJobHandler(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	jobs := make(chan model.Job, 1)
-	jobStore := store.NewJobStore()
-	dlq := store.NewDLQ()
+	jobStore := store.NewMemoryStore()
 
 	jobService := service.NewJobService(jobs, jobStore, metrics.New())
-	jobHandler := NewJobHandler(jobService, dlq)
+	jobHandler := NewJobHandler(jobService, jobStore)
 
 	router := gin.New()
 	router.POST("/dlq/:id/retry", jobHandler.RetryDLQJob)
@@ -318,9 +315,8 @@ func TestRetryDLQJobQueueFullHandler(t *testing.T) {
 	jobs := make(chan model.Job, 1)
 	jobs <- model.Job{ID: "existing-job"}
 
-	jobStore := store.NewJobStore()
-	dlq := store.NewDLQ()
-	dlq.Add(model.Job{
+	jobStore := store.NewMemoryStore()
+	jobStore.DLQAdd(model.Job{
 		ID:       "failed-job",
 		Type:     "email",
 		Payload:  "send email",
@@ -329,7 +325,7 @@ func TestRetryDLQJobQueueFullHandler(t *testing.T) {
 	})
 
 	jobService := service.NewJobService(jobs, jobStore, metrics.New())
-	jobHandler := NewJobHandler(jobService, dlq)
+	jobHandler := NewJobHandler(jobService, jobStore)
 
 	router := gin.New()
 	router.POST("/dlq/:id/retry", jobHandler.RetryDLQJob)
@@ -347,7 +343,7 @@ func TestRetryDLQJobQueueFullHandler(t *testing.T) {
 			http.StatusServiceUnavailable, recorder.Code, recorder.Body.String())
 	}
 
-	if len(dlq.GetAll()) != 1 {
+	if len(jobStore.DLQGetAll()) != 1 {
 		t.Fatal("expected job to remain in DLQ when requeue fails")
 	}
 	if len(jobs) != 1 {

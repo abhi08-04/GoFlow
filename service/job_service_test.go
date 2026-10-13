@@ -11,7 +11,7 @@ import (
 
 func TestCreateJob(t *testing.T) {
 	jobs := make(chan model.Job, 2)
-	jobStore := store.NewJobStore()
+	jobStore := store.NewMemoryStore()
 	jobService := NewJobService(jobs, jobStore, metrics.New())
 
 	req := model.CreateJobRequest{
@@ -52,7 +52,7 @@ func TestCreateJob(t *testing.T) {
 
 func TestCreateJobIdempotency(t *testing.T) {
 	jobs := make(chan model.Job, 2)
-	jobStore := store.NewJobStore()
+	jobStore := store.NewMemoryStore()
 	jobService := NewJobService(jobs, jobStore, metrics.New())
 
 	req := model.CreateJobRequest{
@@ -87,7 +87,7 @@ func TestCreateJobQueueFull(t *testing.T) {
 	jobs := make(chan model.Job, 1)
 	jobs <- model.Job{ID: "existing-job"}
 
-	jobStore := store.NewJobStore()
+	jobStore := store.NewMemoryStore()
 	jobService := NewJobService(jobs, jobStore, metrics.New())
 
 	req := model.CreateJobRequest{
@@ -131,7 +131,7 @@ func TestCreateJobQueueFull(t *testing.T) {
 
 func TestCreateJobIdempotencyKeyConflict(t *testing.T) {
 	jobs := make(chan model.Job, 2)
-	jobStore := store.NewJobStore()
+	jobStore := store.NewMemoryStore()
 	jobService := NewJobService(jobs, jobStore, metrics.New())
 
 	firstReq := model.CreateJobRequest{
@@ -168,7 +168,7 @@ func TestConcurrentIdempotentRequests(t *testing.T) {
 	const requests = 20
 
 	jobs := make(chan model.Job, requests)
-	jobStore := store.NewJobStore()
+	jobStore := store.NewMemoryStore()
 	jobService := NewJobService(jobs, jobStore, metrics.New())
 
 	req := model.CreateJobRequest{
@@ -225,7 +225,7 @@ func TestConcurrentIdempotentRequests(t *testing.T) {
 
 func TestGetJobMissing(t *testing.T) {
 	jobs := make(chan model.Job, 1)
-	jobStore := store.NewJobStore()
+	jobStore := store.NewMemoryStore()
 	jobService := NewJobService(jobs, jobStore, metrics.New())
 
 	job, exists := jobService.GetJob("non-existent-id")
@@ -241,7 +241,7 @@ func TestGetJobMissing(t *testing.T) {
 
 func TestRetryJobSuccess(t *testing.T) {
 	jobs := make(chan model.Job, 1)
-	jobStore := store.NewJobStore()
+	jobStore := store.NewMemoryStore()
 	jobService := NewJobService(jobs, jobStore, metrics.New())
 
 	job := model.Job{
@@ -287,7 +287,7 @@ func TestRetryJobQueueFull(t *testing.T) {
 	existingJob := model.Job{ID: "existing-job"}
 	jobs <- existingJob
 
-	jobStore := store.NewJobStore()
+	jobStore := store.NewMemoryStore()
 	jobService := NewJobService(jobs, jobStore, metrics.New())
 
 	job := model.Job{

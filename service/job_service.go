@@ -9,11 +9,11 @@ import (
 
 type JobService struct {
 	jobs     chan<- model.Job
-	store    *store.JobStore
+	store    store.Store
 	registry *metrics.Registry
 }
 
-func NewJobService(jobs chan<- model.Job, jobStore *store.JobStore, registry *metrics.Registry) *JobService {
+func NewJobService(jobs chan<- model.Job, jobStore store.Store, registry *metrics.Registry) *JobService {
 	return &JobService{
 		jobs:     jobs,
 		store:    jobStore,

@@ -8,7 +8,7 @@ import (
 )
 
 func TestDLQAddAndGetAll(t *testing.T) {
-	dlq := NewDLQ()
+	dlq := NewMemoryStore()
 
 	job1 := model.Job{
 		ID:     "job-1",
@@ -21,10 +21,10 @@ func TestDLQAddAndGetAll(t *testing.T) {
 		Status: model.JobFailed,
 	}
 
-	dlq.Add(job1)
-	dlq.Add(job2)
+	dlq.DLQAdd(job1)
+	dlq.DLQAdd(job2)
 
-	got := dlq.GetAll()
+	got := dlq.DLQGetAll()
 
 	if len(got) != 2 {
 		t.Fatalf("GetAll() returned %d jobs, want 2", len(got))
@@ -44,9 +44,9 @@ func TestDLQAddAndGetAll(t *testing.T) {
 }
 
 func TestDLQGetAllEmpty(t *testing.T) {
-	dlq := NewDLQ()
+	dlq := NewMemoryStore()
 
-	got := dlq.GetAll()
+	got := dlq.DLQGetAll()
 
 	if got == nil {
 		t.Fatal("GetAll() returned nil, want an empty slice")
@@ -57,19 +57,19 @@ func TestDLQGetAllEmpty(t *testing.T) {
 }
 
 func TestDLQAddSameIDUpdatesJob(t *testing.T) {
-	dlq := NewDLQ()
+	dlq := NewMemoryStore()
 
 	job := model.Job{
 		ID:     "job-1",
 		Type:   "email",
 		Status: model.JobFailed,
 	}
-	dlq.Add(job)
+	dlq.DLQAdd(job)
 
 	job.Attempts = 3
-	dlq.Add(job)
+	dlq.DLQAdd(job)
 
-	got := dlq.GetAll()
+	got := dlq.DLQGetAll()
 
 	if len(got) != 1 {
 		t.Fatalf("GetAll() returned %d jobs, want 1", len(got))
@@ -80,14 +80,14 @@ func TestDLQAddSameIDUpdatesJob(t *testing.T) {
 }
 
 func TestDLQRemove(t *testing.T) {
-	dlq := NewDLQ()
+	dlq := NewMemoryStore()
 
-	dlq.Add(model.Job{ID: "job-1"})
-	dlq.Add(model.Job{ID: "job-2"})
+	dlq.DLQAdd(model.Job{ID: "job-1"})
+	dlq.DLQAdd(model.Job{ID: "job-2"})
 
-	dlq.Remove("job-1")
+	dlq.DLQRemove("job-1")
 
-	got := dlq.GetAll()
+	got := dlq.DLQGetAll()
 
 	if len(got) != 1 {
 		t.Fatalf("GetAll() returned %d jobs, want 1", len(got))
@@ -98,19 +98,19 @@ func TestDLQRemove(t *testing.T) {
 }
 
 func TestDLQRemoveMissing(t *testing.T) {
-	dlq := NewDLQ()
-	dlq.Add(model.Job{ID: "job-1"})
+	dlq := NewMemoryStore()
+	dlq.DLQAdd(model.Job{ID: "job-1"})
 
 	// Removing a nonexistent ID should be safe.
-	dlq.Remove("missing")
+	dlq.DLQRemove("missing")
 
-	if got := dlq.GetAll(); len(got) != 1 {
+	if got := dlq.DLQGetAll(); len(got) != 1 {
 		t.Fatalf("GetAll() returned %d jobs, want 1", len(got))
 	}
 }
 
 func TestDLQConcurrentAccess(t *testing.T) {
-	dlq := NewDLQ()
+	dlq := NewMemoryStore()
 
 	const count = 100
 
@@ -123,11 +123,11 @@ func TestDLQConcurrentAccess(t *testing.T) {
 			defer wg.Done()
 
 			id := string(rune('A' + i))
-			dlq.Add(model.Job{ID: id})
-			dlq.GetAll()
+			dlq.DLQAdd(model.Job{ID: id})
+			dlq.DLQGetAll()
 
 			if i%2 == 0 {
-				dlq.Remove(id)
+				dlq.DLQRemove(id)
 			}
 		}(i)
 	}
@@ -136,8 +136,8 @@ func TestDLQConcurrentAccess(t *testing.T) {
 }
 
 func TestDLQConcurrentClaimOnlyOneSucceeds(t *testing.T) {
-	dlq := NewDLQ()
-	dlq.Add(model.Job{
+	dlq := NewMemoryStore()
+	dlq.DLQAdd(model.Job{
 		ID:     "job-1",
 		Type:   "email",
 		Status: model.JobFailed,
@@ -158,7 +158,7 @@ func TestDLQConcurrentClaimOnlyOneSucceeds(t *testing.T) {
 			defer wg.Done()
 			<-start
 
-			_, claimed := dlq.Claim("job-1")
+			_, claimed := dlq.DLQClaim("job-1")
 			if claimed {
 				mu.Lock()
 				successCount++
@@ -174,7 +174,7 @@ func TestDLQConcurrentClaimOnlyOneSucceeds(t *testing.T) {
 		t.Fatalf("successful claims = %d, want 1", successCount)
 	}
 
-	if got := dlq.GetAll(); len(got) != 0 {
+	if got := dlq.DLQGetAll(); len(got) != 0 {
 		t.Fatalf("DLQ contains %d jobs, want 0", len(got))
 	}
 }

@@ -34,14 +34,13 @@ func main() {
 	defer cancel()
 
 	jobs := make(chan model.Job, cfg.JobQueueSize)
-	dlq := store.NewDLQ()
-	jobStore := store.NewJobStore()
+	st := store.NewMemoryStore()
 
 	// Metrics: one registry shared by every goroutine. 720 ring slots
 	// at a 5s sampling interval = exactly one hour of history.
 	registry := metrics.New()
 	ring := metrics.NewRingBuffer(720)
-	sampler := metrics.NewSampler(registry, ring, jobs, dlq, 5*time.Second)
+	sampler := metrics.NewSampler(registry, ring, jobs, st, 5*time.Second)
 	go sampler.Run(ctx)
 
 	retryScheduler := retry.NewScheduler(ctx, jobs, registry)
@@ -49,19 +48,19 @@ func main() {
 
 	for i := 1; i <= cfg.NumWorkers; i++ {
 		wg.Add(1)
-		w := worker.NewWorker(i, jobStore, retryScheduler, cfg.MaxRetries, cfg.BaseBackoff, cfg.JobTimeout, dlq, registry)
+		w := worker.NewWorker(i, st, retryScheduler, cfg.MaxRetries, cfg.BaseBackoff, cfg.JobTimeout, registry)
 		go w.Start(jobs, &wg)
 	}
 
-	jobService := service.NewJobService(jobs, jobStore, registry)
-	jobHandler := handler.NewJobHandler(jobService, dlq)
+	jobService := service.NewJobService(jobs, st, registry)
+	jobHandler := handler.NewJobHandler(jobService, st)
 	metricsHandler := handler.NewMetricsHandler(registry, ring, cfg)
 
 	tmpl, err := web.Parse()
 	if err != nil {
 		log.Fatalf("Failed to parse templates: %v", err)
 	}
-	pageHandler := handler.NewPageHandler(tmpl, jobService, dlq, registry, ring, cfg)
+	pageHandler := handler.NewPageHandler(tmpl, jobService, st, registry, ring, cfg)
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{

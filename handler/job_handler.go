@@ -10,11 +10,11 @@ import (
 )
 
 type JobHandler struct {
-	dlq        *store.DLQ
+	dlq        store.Store
 	jobService *service.JobService
 }
 
-func NewJobHandler(jobService *service.JobService, dlq *store.DLQ) *JobHandler {
+func NewJobHandler(jobService *service.JobService, dlq store.Store) *JobHandler {
 	return &JobHandler{
 		dlq:        dlq,
 		jobService: jobService,
@@ -77,7 +77,7 @@ func (h *JobHandler) GetJob(c *gin.Context) {
 }
 
 func (h *JobHandler) GetDLQ(c *gin.Context) {
-	jobs := h.dlq.GetAll()
+	jobs := h.dlq.DLQGetAll()
 
 	c.JSON(http.StatusOK, jobs)
 }
@@ -85,7 +85,7 @@ func (h *JobHandler) GetDLQ(c *gin.Context) {
 func (h *JobHandler) RetryDLQJob(c *gin.Context) {
 	id := c.Param("id")
 
-	job, found := h.dlq.Claim(id)
+	job, found := h.dlq.DLQClaim(id)
 	if !found {
 		c.JSON(http.StatusNotFound, gin.H{
 			"error": "job not found in DLQ",
@@ -94,7 +94,7 @@ func (h *JobHandler) RetryDLQJob(c *gin.Context) {
 	}
 
 	if !h.jobService.RetryJob(job) {
-		h.dlq.Add(job)
+		h.dlq.DLQAdd(job)
 
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"error": "job queue is full",
@@ -113,7 +113,7 @@ func (h *JobHandler) RetryDLQJob(c *gin.Context) {
 // response reports both numbers so the UI can show a toast like
 // "48 requeued, 2 rejected (queue full)".
 func (h *JobHandler) RetryAllDLQ(c *gin.Context) {
-	jobs := h.dlq.ClaimAll()
+	jobs := h.dlq.DLQClaimAll()
 
 	var requeued, rejected int
 	for _, j := range jobs {
@@ -121,7 +121,7 @@ func (h *JobHandler) RetryAllDLQ(c *gin.Context) {
 			requeued++
 			continue
 		}
-		h.dlq.Add(j)
+		h.dlq.DLQAdd(j)
 		rejected++
 	}
 
@@ -132,13 +132,13 @@ func (h *JobHandler) RetryAllDLQ(c *gin.Context) {
 }
 
 func (h *JobHandler) PurgeDLQ(c *gin.Context) {
-	jobs := h.dlq.ClaimAll()
+	jobs := h.dlq.DLQClaimAll()
 	c.JSON(http.StatusOK, gin.H{"purged": len(jobs)})
 }
 
 func (h *JobHandler) DeleteDLQJob(c *gin.Context) {
 	id := c.Param("id")
-	if _, found := h.dlq.Claim(id); !found {
+	if _, found := h.dlq.DLQClaim(id); !found {
 		c.JSON(http.StatusNotFound, gin.H{"error": "job not found in DLQ"})
 		return
 	}
